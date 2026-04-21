@@ -1,0 +1,25 @@
+{
+  "name": "LIQZAR",
+  "displayName": "LIQZAR",
+  "expo": {
+    "name": "LIQZAR",
+    "slug": "liqzar-mobile",
+    "version": "1.0.0",
+    "scheme": "liqzar",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.liqzar.delivery"
+    },
+    "android": {
+      "package": "com.liqzar.delivery"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b7cc5924-558a-4153-a11a-3624fd5c4b36"
+      }
+    }
+  }
+}

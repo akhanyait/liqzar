@@ -1,0 +1,11 @@
+{
+  "name": "@liqzar/shared",
+  "version": "1.0.0",
+  "description": "Shared types, constants, and Supabase API helpers used by both the web app and the React Native mobile app.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "private": true,
+  "dependencies": {
+    "@supabase/supabase-js": "^2.98.0"
+  }
+}

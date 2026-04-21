@@ -1,0 +1,1 @@
+ALTER TABLE public.products ADD COLUMN makro_price numeric DEFAULT NULL;

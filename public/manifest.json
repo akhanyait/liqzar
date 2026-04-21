@@ -1,0 +1,27 @@
+{
+  "name": "LIQZAR — Premium Spirits Delivery",
+  "short_name": "LIQZAR",
+  "description": "Premium spirits delivery. Curated whiskey, wine, champagne, and rare spirits delivered to your door.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#D4AF37",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/liqzar-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/liqzar-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["shopping", "food"],
+  "lang": "en-ZA",
+  "dir": "ltr"
+}
