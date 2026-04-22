@@ -1,7 +1,7 @@
 export default {
   expo: {
     name: "LIQZAR",
-    slug: "liqzar-mobile",
+    slug: "liqzar",
     owner: "akhanya-it",
     version: "1.0.0",
     scheme: "liqzar",
