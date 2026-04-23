@@ -48,33 +48,51 @@ const CARD_MARGIN = 12;
 const CARD_WIDTH = Math.floor((width - 32 - CARD_MARGIN) / 2.2);
 const CARD_IMG_HEIGHT = Math.floor(CARD_WIDTH * 1.2); // ~5:6 portrait ratio
 
+/* ── Hero banner slides — premium LSM 9-10 positioning, confident exclusivity.
+   Editorial tone: gatekept without threat, aspirational without insecurity.
+   Images currently point to a neutral amber-whisky fallback; swap to curated
+   brand assets (bottle shots + African executive + rainbow-nation lifestyle)
+   once sourced via marketing. ─────────────────────────────────────────────── */
 const BANNER_SLIDES = [
   {
     id: "1",
-    title: "Premium Spirits",
-    subtitle: "Delivered Fast",
-    description: "At your door within 2-4 hours",
+    title: "If You Know,",
+    subtitle: "You Know.",
+    description:
+      "The Macallan M, 2022 Annual Release. Presented in hand-crafted Lalique. For the collectors who moved past asking the price.",
     image:
-      "https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=800&q=80",
-    cta: "Shop Now",
+      "https://images.unsplash.com/photo-1582053433976-25c00369fc93?w=1200&q=80",
+    cta: "Enter The Vault",
   },
   {
     id: "2",
-    title: "Gift Hampers",
-    subtitle: "For Every Occasion",
-    description: "Curated hampers starting from R299",
+    title: "Africa Built This.",
+    subtitle: "Every Pour, A Toast.",
+    description:
+      "For the builders, the backers, the visionaries shaping the continent's tomorrow — LIQZAR delivers the whisky worthy of the work, in 2–4 hours.",
     image:
-      "https://images.pexels.com/photos/8555526/pexels-photo-8555526.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    cta: "Explore Gifts",
+      "https://images.unsplash.com/photo-1582053433976-25c00369fc93?w=1200&q=80",
+    cta: "Honour The Hour",
   },
   {
     id: "3",
-    title: "Happy Hour",
-    subtitle: "Deals & Specials",
-    description: "Up to 30% off selected spirits",
+    title: "Fifty Years,",
+    subtitle: "One Unmistakable Dram.",
+    description:
+      "Glenfiddich 50 — reserved for palates that have outgrown every other toast. Available to the few who have earned the pour.",
     image:
-      "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=800&q=80",
-    cta: "View Deals",
+      "https://images.unsplash.com/photo-1582053433976-25c00369fc93?w=1200&q=80",
+    cta: "Claim The Vintage",
+  },
+  {
+    id: "4",
+    title: "One Nation,",
+    subtitle: "One Extraordinary Pour.",
+    description:
+      "Across every heritage, every boardroom, every triumph — South Africa's finest raise the same glass. Rarely seen. Always remembered.",
+    image:
+      "https://images.unsplash.com/photo-1582053433976-25c00369fc93?w=1200&q=80",
+    cta: "Be Part Of The Few",
   },
 ];
 

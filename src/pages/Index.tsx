@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Truck,
   Gift,
@@ -41,39 +43,48 @@ import { toast } from "@/hooks/use-toast";
    Image URLs are Unsplash photo IDs known to resolve; each <img> below also
    has an onError fallback to the whisky hero so the slider never shows a
    broken image if Unsplash changes anything. */
+/* Fallback is a neutral amber-whisky editorial shot with no identifiable
+   brand labels — used only until each slide's real curated image is on disk.
+   Keeps the hero brand-safe in all states (no competitor logos, no people). */
 const HERO_FALLBACK_IMAGE =
-  "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=1400&h=900&fit=crop";
+  "https://images.unsplash.com/photo-1582053433976-25c00369fc93?w=1400&h=900&fit=crop";
 
 const heroSlides = [
   {
-    title: "Crafted for the",
-    highlight: "Modern Connoisseur",
+    title: "If You Know,",
+    highlight: "You Know.",
     subtitle:
-      "Handpicked premium spirits, delivered to South Africa's tastemakers in 2–4 hours.",
-    cta: "Shop The Collection",
-    link: "/catalogue",
-    image:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1400&h=900&fit=crop",
-  },
-  {
-    title: "Every Celebration",
-    highlight: "Deserves The Finest",
-    subtitle:
-      "From boardroom toasts to weekend gatherings — raise a glass worthy of the moment.",
-    cta: "Browse Premium",
+      "The Macallan M, 2022 Annual Release. Presented in hand-crafted Lalique. For the collectors who moved past asking the price.",
+    cta: "Enter The Vault",
     link: "/catalogue?sort=trending",
-    image:
-      "https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=1400&h=900&fit=crop",
+    image: "/hero/macallan-m.jpg",
   },
   {
-    title: "The Art Of",
-    highlight: "Fine Living",
+    title: "Africa Built This.",
+    highlight: "Every Pour, A Toast.",
     subtitle:
-      "Hand-crafted spirits and mixology essentials — delivered for the connoisseurs who take taste seriously.",
-    cta: "Explore The Craft",
+      "For the builders, the backers, the visionaries shaping the continent's tomorrow — LIQZAR delivers the whisky worthy of the work, in 2–4 hours.",
+    cta: "Honour The Hour",
     link: "/catalogue",
-    image:
-      "https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=1400&h=900&fit=crop",
+    image: "/hero/lifestyle-african-executive.jpg",
+  },
+  {
+    title: "Fifty Years,",
+    highlight: "One Unmistakable Dram.",
+    subtitle:
+      "Glenfiddich 50 — reserved for palates that have outgrown every other toast. Available to the few who have earned the pour.",
+    cta: "Claim The Vintage",
+    link: "/catalogue?sort=trending",
+    image: "/hero/glenfiddich-50.jpg",
+  },
+  {
+    title: "One Nation,",
+    highlight: "One Extraordinary Pour.",
+    subtitle:
+      "Across every heritage, every boardroom, every triumph — South Africa's finest raise the same glass. Rarely seen. Always remembered.",
+    cta: "Be Part Of The Few",
+    link: "/catalogue",
+    image: "/hero/lifestyle-rainbow-nation.jpg",
   },
 ];
 
@@ -227,6 +238,11 @@ export default function Index() {
 
   const nextHero = useCallback(
     () => setHeroIdx((i) => (i + 1) % heroSlides.length),
+    [],
+  );
+  const prevHero = useCallback(
+    () =>
+      setHeroIdx((i) => (i - 1 + heroSlides.length) % heroSlides.length),
     [],
   );
 
@@ -455,6 +471,30 @@ export default function Index() {
               </motion.div>
             </motion.div>
           </AnimatePresence>
+
+          {/* Navigation arrows — premium ghost buttons, keyboard + a11y friendly */}
+          <button
+            type="button"
+            onClick={() => {
+              impact("light");
+              prevHero();
+            }}
+            aria-label="Previous slide"
+            className="hidden sm:flex absolute left-4 md:left-8 top-1/2 -translate-y-1/2 z-10 w-11 h-11 md:w-12 md:h-12 items-center justify-center rounded-full border border-white/20 bg-black/25 backdrop-blur-sm text-white/90 hover:text-[#D4AF37] hover:border-[#D4AF37]/60 hover:bg-black/40 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/80"
+          >
+            <ChevronLeft className="w-5 h-5 md:w-5.5 md:h-5.5" strokeWidth={2} />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              impact("light");
+              nextHero();
+            }}
+            aria-label="Next slide"
+            className="hidden sm:flex absolute right-4 md:right-8 top-1/2 -translate-y-1/2 z-10 w-11 h-11 md:w-12 md:h-12 items-center justify-center rounded-full border border-white/20 bg-black/25 backdrop-blur-sm text-white/90 hover:text-[#D4AF37] hover:border-[#D4AF37]/60 hover:bg-black/40 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/80"
+          >
+            <ChevronRight className="w-5 h-5 md:w-5.5 md:h-5.5" strokeWidth={2} />
+          </button>
 
           {/* Slide indicators — refined gold rule */}
           <div className="absolute bottom-6 md:bottom-10 left-5 md:left-auto md:right-10 flex items-center gap-3">
