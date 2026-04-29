@@ -7,14 +7,7 @@
     "packages/*"
   ],
   "type": "module",
-  "pnpm": {
-    "overrides": {
-      "@expo/config-plugins": "~10.1.2",
-      "@expo/prebuild-config": "~9.0.12",
-      "@expo/config": "~11.0.0",
-      "@expo/cli": "~0.24.0"
-    }
-  },
+  "packageManager": "pnpm@10.32.1",
   "scripts": {
     "dev": "NODE_ENV=development vite",
     "build": "vite build",
@@ -111,6 +104,12 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild"
-    ]
+    ],
+    "overrides": {
+      "@expo/config-plugins": "~10.1.2",
+      "@expo/prebuild-config": "~9.0.12",
+      "@expo/config": "~11.0.0",
+      "@expo/cli": "~0.24.0"
+    }
   }
 }
