@@ -9,6 +9,7 @@ export default {
     userInterfaceStyle: "dark",
     icon: "./assets/icon.png",
     splash: {
+      image: "./assets/splash.png",
       resizeMode: "contain",
       backgroundColor: "#050403",
     },
@@ -16,10 +17,8 @@ export default {
     ios: {
       supportsTablet: false,
       bundleIdentifier: "com.liqzar.delivery",
-      config: {
-        // Secret — set GOOGLE_MAPS_API_KEY in .env / EAS build secrets.
-        googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
-      },
+      // iOS uses Apple Maps via react-native-maps (no API key required).
+      // Android still uses Google Maps below.
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSCameraUsageDescription:

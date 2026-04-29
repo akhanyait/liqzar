@@ -16,6 +16,16 @@ dist
 dist-ssr
 *.local
 
+# Expo local cache (machine-specific dev state)
+.expo/
+apps/*/.expo/
+
+# Workspace packages must NOT have their own lockfiles — pnpm uses root pnpm-lock.yaml only
+apps/*/package-lock.json
+apps/*/yarn.lock
+apps/*/pnpm-lock.yaml
+apps/*/bun.lock
+
 # Release signing — NEVER commit these (losing them = can't update the app)
 *.keystore
 !apps/mobile/android/app/debug.keystore
