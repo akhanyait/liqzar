@@ -8,7 +8,7 @@ import {
   Platform,
   Animated,
 } from "react-native";
-import { CameraView, useCameraPermissions } from "expo-camera/next";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { Icon } from "../components/Icon";
