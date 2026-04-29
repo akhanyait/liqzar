@@ -1,3 +1,7 @@
+# Apple credentials — must never be committed
+*.p8
+AuthKey_*.p8
+
 # Logs
 logs
 *.log
@@ -11,6 +15,11 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# Release signing — NEVER commit these (losing them = can't update the app)
+*.keystore
+!apps/mobile/android/app/debug.keystore
+gradle.properties.local
 
 # Environment variables — NEVER commit these (contain API keys)
 .env

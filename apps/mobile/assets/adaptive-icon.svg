@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    Android adaptive icon FOREGROUND layer.
+    Android applies its own mask (circle/squircle/rounded) and crops ~33% from every edge,
+    so safe content must live in the inner ~672px circle. This foreground is transparent
+    so it composites over the adaptiveIcon.backgroundColor (#050403) set in app.config.js.
+  -->
+  <defs>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#8a6a1f"/>
+      <stop offset="25%" stop-color="#D4AF37"/>
+      <stop offset="50%" stop-color="#F4E27A"/>
+      <stop offset="75%" stop-color="#D4AF37"/>
+      <stop offset="100%" stop-color="#8a6a1f"/>
+    </linearGradient>
+
+    <linearGradient id="goldSoft" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#F4E27A" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#D4AF37" stop-opacity="0.85"/>
+    </linearGradient>
+
+    <radialGradient id="spec" cx="50%" cy="32%" r="55%">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#D4AF37" stop-opacity="0.18"/>
+      <stop offset="70%" stop-color="#D4AF37" stop-opacity="0"/>
+    </radialGradient>
+
+    <mask id="ringMask">
+      <rect width="1024" height="1024" fill="black"/>
+      <!-- Shrunk to fit Android's 66% safe zone: center 512,512; outer r=232 -->
+      <circle cx="512" cy="512" r="232" fill="white"/>
+      <circle cx="512" cy="512" r="170" fill="black"/>
+      <path d="M 512 512 L 710 336 L 758 384 L 758 528 Z" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- Ambient glow -->
+  <circle cx="512" cy="512" r="310" fill="url(#glow)"/>
+
+  <!-- Ring -->
+  <g mask="url(#ringMask)">
+    <rect x="256" y="256" width="512" height="512" fill="url(#gold)"/>
+    <rect x="256" y="256" width="512" height="512" fill="url(#spec)"/>
+  </g>
+
+  <!-- Pour splash (scaled to safe zone) -->
+  <g fill="url(#goldSoft)">
+    <circle cx="720" cy="336" r="18"/>
+    <circle cx="754" cy="306" r="13"/>
+    <circle cx="782" cy="286" r="9"/>
+    <circle cx="736" cy="282" r="7"/>
+    <circle cx="698" cy="310" r="10"/>
+    <circle cx="806" cy="320" r="5"/>
+    <circle cx="766" cy="344" r="7"/>
+    <circle cx="680" cy="284" r="5"/>
+  </g>
+</svg>

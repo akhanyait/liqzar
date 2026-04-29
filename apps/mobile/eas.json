@@ -1,6 +1,8 @@
 {
   "cli": {
-    "version": ">= 5.0.0"
+    "version": ">= 5.0.0",
+    "appVersionSource": "remote",
+    "promptToConfigurePushNotifications": false
   },
   "build": {
     "development": {
@@ -21,12 +23,26 @@
     },
     "production": {
       "distribution": "store",
+      "ios": {
+        "autoIncrement": true,
+        "image": "latest"
+      },
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "autoIncrement": true
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "makinana@icloud.com",
+        "ascAppId": "6763621577",
+        "appleTeamId": "2DZRZFPKDT",
+        "ascApiKeyPath": "/Users/gilbertmakinana/.appstoreconnect/AuthKey_T7NC4C3PR9.p8",
+        "ascApiKeyId": "T7NC4C3PR9",
+        "ascApiKeyIssuerId": "6cd0a3b0-4d28-4b36-b847-d23ef893570b"
+      }
+    }
   }
 }

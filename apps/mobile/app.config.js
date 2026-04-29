@@ -21,6 +21,7 @@ export default {
         googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
       },
       infoPlist: {
+        ITSAppUsesNonExemptEncryption: false,
         NSCameraUsageDescription:
           "LIQZAR uses the camera to scan product barcodes for quick lookup.",
         NSLocationWhenInUseUsageDescription:
@@ -42,6 +43,7 @@ export default {
         },
       },
       adaptiveIcon: {
+        foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#050403",
       },
       permissions: [

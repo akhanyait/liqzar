@@ -55,6 +55,8 @@ const SecurityPage = lazy(() => import("./pages/SecurityPage"));
 const PreferencesPage = lazy(() => import("./pages/PreferencesPage"));
 const SupportPage = lazy(() => import("./pages/SupportPage"));
 const LegalPage = lazy(() => import("./pages/LegalPage"));
+const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
+const AccountDeletionPage = lazy(() => import("./pages/AccountDeletionPage"));
 const BulkOrderPage = lazy(() => import("./pages/BulkOrderPage"));
 const PaymentSuccessPage = lazy(() => import("./pages/PaymentSuccessPage"));
 const PaymentCancelPage = lazy(() => import("./pages/PaymentCancelPage"));
@@ -208,6 +210,8 @@ const CustomerLayout = () => {
             <Route path="/settings" element={<PreferencesPage />} />
             <Route path="/support" element={<SupportPage />} />
             <Route path="/legal" element={<LegalPage />} />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route path="/account-deletion" element={<AccountDeletionPage />} />
             <Route path="/payment/success" element={<PaymentSuccessPage />} />
             <Route path="/payment/cancel" element={<PaymentCancelPage />} />
             <Route path="/payment/error" element={<PaymentErrorPage />} />

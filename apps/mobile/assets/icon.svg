@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Dark backdrop: subtle radial to give depth without looking "cheap" -->
+    <radialGradient id="bg" cx="50%" cy="42%" r="70%">
+      <stop offset="0%" stop-color="#1a1410"/>
+      <stop offset="55%" stop-color="#0a0806"/>
+      <stop offset="100%" stop-color="#050403"/>
+    </radialGradient>
+
+    <!-- Gold gradient on the glass rim: warm → bright → warm, with a highlight hotspot -->
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#8a6a1f"/>
+      <stop offset="25%" stop-color="#D4AF37"/>
+      <stop offset="50%" stop-color="#F4E27A"/>
+      <stop offset="75%" stop-color="#D4AF37"/>
+      <stop offset="100%" stop-color="#8a6a1f"/>
+    </linearGradient>
+
+    <linearGradient id="goldSoft" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#F4E27A" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#D4AF37" stop-opacity="0.85"/>
+    </linearGradient>
+
+    <!-- Rim specular highlight -->
+    <radialGradient id="spec" cx="50%" cy="32%" r="55%">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Soft gold glow around the mark -->
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#D4AF37" stop-opacity="0.25"/>
+      <stop offset="70%" stop-color="#D4AF37" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Mask: punches out the inside of the ring and the pour-gap on the right -->
+    <mask id="ringMask">
+      <rect width="1024" height="1024" fill="black"/>
+      <!-- outer rim -->
+      <circle cx="512" cy="520" r="290" fill="white"/>
+      <!-- inner hole -->
+      <circle cx="512" cy="520" r="212" fill="black"/>
+      <!-- pour gap: cut a wedge on the upper-right so the sparkle reads as pour -->
+      <path d="M 512 520 L 760 300 L 820 360 L 820 540 Z" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- 1. Rounded-square safe zone (iOS applies its own mask; Android adaptive foreground uses inner 66%) -->
+  <rect width="1024" height="1024" rx="224" ry="224" fill="url(#bg)"/>
+
+  <!-- 2. Ambient gold glow behind the mark -->
+  <circle cx="512" cy="520" r="380" fill="url(#glow)"/>
+
+  <!-- 3. The rim (gold ring with gap), masked into shape -->
+  <g mask="url(#ringMask)">
+    <rect x="190" y="198" width="644" height="644" fill="url(#gold)"/>
+    <!-- specular highlight on top portion of rim -->
+    <rect x="190" y="198" width="644" height="644" fill="url(#spec)"/>
+  </g>
+
+  <!-- 4. Droplet / pour splash: cluster of gold dots trailing off to the upper-right -->
+  <g fill="url(#goldSoft)">
+    <circle cx="770" cy="300" r="22"/>
+    <circle cx="812" cy="262" r="16"/>
+    <circle cx="848" cy="238" r="11"/>
+    <circle cx="790" cy="232" r="9"/>
+    <circle cx="742" cy="268" r="13"/>
+    <circle cx="880" cy="280" r="7"/>
+    <circle cx="832" cy="310" r="8"/>
+    <circle cx="720" cy="236" r="6"/>
+  </g>
+
+  <!-- 5. Subtle gold hairline border for premium finish -->
+  <rect x="6" y="6" width="1012" height="1012" rx="220" ry="220"
+        fill="none" stroke="#D4AF37" stroke-opacity="0.18" stroke-width="2"/>
+</svg>
