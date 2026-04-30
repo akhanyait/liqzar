@@ -18,6 +18,7 @@ import { Icon } from "../components/Icon";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useNavigation } from "@react-navigation/native";
+import { supabase } from "../lib/supabase";
 
 interface MenuItem {
   icon: string;
@@ -48,6 +49,56 @@ export default function ProfileScreen() {
         onPress: signOut,
       },
     ]);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "Deleting your account will permanently remove your profile, order history, addresses, loyalty points, and all other data associated with your account. This cannot be undone.\n\nAre you sure you want to continue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert(
+              "Are you absolutely sure?",
+              "This is your final confirmation. Tap \"Delete My Account\" to permanently delete everything.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Delete My Account",
+                  style: "destructive",
+                  onPress: async () => {
+                    try {
+                      const { data, error } = await supabase.functions.invoke(
+                        "delete-account",
+                        { method: "POST" },
+                      );
+                      if (error) throw error;
+                      if (!data?.success) {
+                        throw new Error(data?.error || "Account deletion failed");
+                      }
+                      await signOut();
+                      Alert.alert(
+                        "Account Deleted",
+                        "Your LIQZAR account and all associated data have been permanently deleted.",
+                      );
+                    } catch (err: any) {
+                      Alert.alert(
+                        "Could Not Delete Account",
+                        err?.message ||
+                          "Something went wrong. Please try again or contact support@liqzar.co.za.",
+                      );
+                    }
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
   };
 
   const menuGroups: MenuGroup[] = [
@@ -368,6 +419,31 @@ export default function ProfileScreen() {
           color: colors.status.error,
           fontWeight: "600",
         },
+        /* ── Delete account ─────────────────────────── */
+        deleteAccountSection: {
+          paddingHorizontal: spacing.lg,
+          marginTop: spacing.md,
+          alignItems: "center",
+        },
+        deleteAccountButton: {
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          paddingVertical: 12,
+          paddingHorizontal: spacing.lg,
+          gap: spacing.xs,
+        },
+        deleteAccountText: {
+          ...typography.bodySmall,
+          color: colors.status.error,
+          fontWeight: "600",
+        },
+        deleteAccountHint: {
+          ...typography.caption,
+          color: colors.text.muted,
+          textAlign: "center",
+          marginTop: 2,
+        },
         /* ── Footer ─────────────────────────────────── */
         versionText: {
           ...typography.caption,
@@ -526,6 +602,21 @@ export default function ProfileScreen() {
             <Text style={styles.signOutText}>Sign Out</Text>
           </TouchableOpacity>
         </LinearGradient>
+      </View>
+
+      {/* ── Delete Account (required for App Store) ─── */}
+      <View style={styles.deleteAccountSection}>
+        <TouchableOpacity
+          style={styles.deleteAccountButton}
+          onPress={handleDeleteAccount}
+          activeOpacity={0.7}
+        >
+          <Icon name="trash-outline" size={18} color={colors.status.error} />
+          <Text style={styles.deleteAccountText}>Delete Account</Text>
+        </TouchableOpacity>
+        <Text style={styles.deleteAccountHint}>
+          Permanently remove your account and all associated data
+        </Text>
       </View>
 
       {/* ── App Version ─────────────────────────────── */}
