@@ -34,7 +34,10 @@ export default {
       },
     },
     android: {
-      package: "com.liqzar.delivery",
+      // Android-specific package name (different from iOS bundleId because
+      // com.liqzar.delivery was already claimed on a different Google Play
+      // developer account; iOS keeps com.liqzar.delivery on Apple).
+      package: "co.za.liqzar.delivery",
       config: {
         googleMaps: {
           // Secret — set GOOGLE_MAPS_API_KEY in .env / EAS build secrets.
