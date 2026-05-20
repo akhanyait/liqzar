@@ -1,15 +1,21 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Alert,
-  Dimensions,
-  Animated,
   Linking,
 } from "react-native";
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
+import {
+  MapView,
+  Camera,
+  ShapeSource,
+  LineLayer,
+  PointAnnotation,
+  UserLocation,
+  StyleURL,
+} from "@rnmapbox/maps";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -17,197 +23,373 @@ import * as Location from "expo-location";
 import { Icon } from "../../components/Icon";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useOrders } from "../../contexts/OrderContext";
-import { spacing, borderRadius } from "../../theme";
+import { borderRadius } from "../../theme";
+import {
+  getDrivingDirections,
+  formatDistance,
+  formatDuration,
+  maneuverIcon,
+  type DirectionsRoute,
+  type DirectionsStep,
+} from "../../services/MapboxDirections";
 
-const { width } = Dimensions.get("window");
+// Haversine distance in metres between two [lng, lat] points.
+function distanceMeters(
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLng = toRad(b.longitude - a.longitude);
+  const lat1 = toRad(a.latitude);
+  const lat2 = toRad(b.latitude);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
 
-/**
- * Routing data below is SIMULATED. There is no real routing API integration.
- * All coordinates, routes, and directions are hardcoded Cape Town data.
- */
-const IS_MOCK_ROUTING = true;
-
-// Depot start point
-const DEPOT_LOC = { latitude: -33.9215, longitude: 18.4184 };
-
-// Mock customer locations based on address
-const CUSTOMER_LOCATIONS: Record<string, { latitude: number; longitude: number }> = {
-  "42 Nelson Mandela Blvd, Cape Town": { latitude: -33.9249, longitude: 18.4241 },
-  "18 Long Street, CBD": { latitude: -33.9218, longitude: 18.4171 },
-  "7 Kloof Street, Gardens": { latitude: -33.9282, longitude: 18.4103 },
-};
-
-// Realistic route from depot to customer (Cape Town streets)
-const getRoute = (destLat: number, destLng: number) => {
-  const coords = [
-    { latitude: DEPOT_LOC.latitude, longitude: DEPOT_LOC.longitude },
-    { latitude: -33.9218, longitude: 18.4190 },
-    { latitude: -33.9222, longitude: 18.4198 },
-    { latitude: -33.9228, longitude: 18.4208 },
-    { latitude: -33.9233, longitude: 18.4218 },
-    { latitude: -33.9238, longitude: 18.4225 },
-    { latitude: -33.9242, longitude: 18.4232 },
-    { latitude: destLat, longitude: destLng },
-  ];
-  return coords;
-};
-
-// Mock turn-by-turn for customer delivery
-const getDirections = (address: string) => [
-  { instruction: "Head east on Buitengracht St", distance: "150m", icon: "arrow-up-outline" },
-  { instruction: "Turn left onto Wale St", distance: "300m", icon: "arrow-back-outline" },
-  { instruction: "Continue onto Adderley St", distance: "250m", icon: "arrow-up-outline" },
-  { instruction: `Turn right toward ${address.split(",")[0]}`, distance: "200m", icon: "arrow-forward-outline" },
-  { instruction: `Arrive at ${address.split(",")[0]}`, distance: "", icon: "flag-outline" },
-];
+// Cape Town fallback when an order has no coordinates (shouldn't happen in prod,
+// but avoids crashing the screen on legacy data).
+const FALLBACK_DEST = { latitude: -33.9249, longitude: 18.4241 };
 
 export default function DriverNavigation() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { colors, isDark } = useTheme();
-  const { markEnRoute, updateOrderStatus } = useOrders();
-  const mapRef = useRef<MapView>(null);
-  const pulseAnim = useRef(new Animated.Value(0.4)).current;
+  const { markEnRoute, updateOrderStatus, activeOrders } = useOrders();
 
-  const delivery = route.params?.delivery;
-  const orderId = delivery?.orderId || delivery?.id;
-  const address = delivery?.address || "42 Nelson Mandela Blvd, Cape Town";
-  const customerLoc = CUSTOMER_LOCATIONS[address] || { latitude: -33.9249, longitude: 18.4241 };
-  const routeCoords = React.useMemo(
-    () => getRoute(customerLoc.latitude, customerLoc.longitude),
-    [customerLoc.latitude, customerLoc.longitude],
+  const cameraRef = useRef<Camera>(null);
+  const watchSub = useRef<Location.LocationSubscription | null>(null);
+
+  // ── Resolve payload — two shapes:
+  //   1. RoutePlanModal: { destination: { latitude, longitude, label, address }, orderId }
+  //   2. Other callers:  { delivery: { ... } }
+  const params = route.params || {};
+  const delivery = params.delivery;
+  const explicitDest = params.destination;
+  const orderId: string | undefined = params.orderId || delivery?.orderId || delivery?.id;
+
+  // Pull the live order from context to extract coordinates when only an id is passed.
+  const orderRecord = useMemo(
+    () => (orderId ? activeOrders.find((o) => o.id === orderId) : undefined),
+    [activeOrders, orderId],
   );
-  const directions = React.useMemo(() => getDirections(address), [address]);
+  const addrCoords = (orderRecord as any)?.delivery_address?.coordinates;
+  const destination = useMemo(() => {
+    if (explicitDest?.latitude && explicitDest?.longitude) {
+      return {
+        latitude: explicitDest.latitude,
+        longitude: explicitDest.longitude,
+        label: explicitDest.label || delivery?.customerName || "Customer",
+        address: explicitDest.address || delivery?.address || "",
+      };
+    }
+    if (addrCoords?.lat && addrCoords?.lng) {
+      return {
+        latitude: addrCoords.lat,
+        longitude: addrCoords.lng,
+        label: delivery?.customerName || "Customer",
+        address: delivery?.address || "",
+      };
+    }
+    return {
+      ...FALLBACK_DEST,
+      label: delivery?.customerName || "Customer",
+      address: delivery?.address || "Destination",
+    };
+  }, [explicitDest, addrCoords, delivery]);
 
-  const [driverLocation, setDriverLocation] = useState(DEPOT_LOC);
-  const [currentStep, setCurrentStep] = useState(0);
+  const customerName = delivery?.customerName || explicitDest?.label || "Customer";
+  const customerPhone = delivery?.customerPhone || "";
+  const orderNumber = delivery?.orderNumber || orderRecord?.order_number || "";
+  const orderItems = delivery?.items ?? (orderRecord as any)?.order_items?.length ?? 0;
+  const orderTotal = delivery?.total ?? orderRecord?.total ?? 0;
+
+  // Order status gate. The 17-status state machine requires:
+  //   ready → driver_assigned → picked_up → en_route → arrived → delivered
+  // Start Navigation transitions picked_up → en_route, so we have to block it
+  // when the order isn't picked up yet — otherwise the DB rejects the jump
+  // (e.g. ready → en_route) and surfaces "Status Update Failed" to the driver.
+  //
+  // When orderRecord is missing (legacy callers that only pass an explicit
+  // destination without an orderId, or destinations with no DB record), fall
+  // back to the unguarded flow. The state-machine check is a no-op there.
+  const orderStatus = orderRecord?.status as string | undefined;
+  type NavMode = "start" | "resume" | "needs_pickup" | "needs_pin" | "unknown";
+  const navMode: NavMode = useMemo(() => {
+    if (!orderId || !orderStatus) return "start";
+    switch (orderStatus) {
+      case "picked_up":
+        return "start";
+      case "en_route":
+        return "resume";
+      case "ready":
+      case "driver_assigned":
+      case "preparing":
+      case "pending":
+        return "needs_pickup";
+      case "arrived":
+        return "needs_pin";
+      default:
+        return "unknown";
+    }
+  }, [orderId, orderStatus]);
+
+  const goToDepotPickup = useCallback(() => {
+    navigation.replace("DriverDepotPickup", {
+      delivery: {
+        ...(delivery || {}),
+        id: orderId,
+        orderId,
+        orderNumber,
+        customerName,
+        address: destination.address,
+        total: orderTotal,
+        items: orderItems,
+      },
+    });
+  }, [navigation, delivery, orderId, orderNumber, customerName, destination.address, orderTotal, orderItems]);
+
+  const goToDeliveryPin = useCallback(() => {
+    navigation.replace("DriverDeliveryPinVerify", {
+      delivery: {
+        ...(delivery || {}),
+        orderId,
+        orderNumber,
+        customerName,
+        customerPhone,
+        address: destination.address,
+        total: orderTotal,
+        items: orderItems,
+      },
+    });
+  }, [navigation, delivery, orderId, orderNumber, customerName, customerPhone, destination.address, orderTotal, orderItems]);
+
+  // ── Live driver location
+  const [driverLocation, setDriverLocation] = useState<{
+    latitude: number;
+    longitude: number;
+    heading?: number;
+  } | null>(null);
+  const [locDenied, setLocDenied] = useState(false);
+
+  // ── Mapbox Directions state
+  const [directions, setDirections] = useState<DirectionsRoute | null>(null);
+  const [routeError, setRouteError] = useState<string | null>(null);
   const [navigating, setNavigating] = useState(false);
   const [arrived, setArrived] = useState(false);
+  const [currentStepIdx, setCurrentStepIdx] = useState(0);
 
-  // Pulse animation
+  // 1) Get an initial location fix immediately, then start watching.
   useEffect(() => {
-    if (!navigating) return;
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 0.4, duration: 1000, useNativeDriver: true }),
-      ]),
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [navigating]);
-
-  // Get real location if available
-  useEffect(() => {
+    let cancelled = false;
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === "granted") {
-        const loc = await Location.getCurrentPositionAsync({});
-        if (Math.abs(loc.coords.latitude - DEPOT_LOC.latitude) < 1) {
-          setDriverLocation({
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-          });
-        }
+      if (cancelled) return;
+      if (status !== "granted") {
+        setLocDenied(true);
+        return;
+      }
+      try {
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+        if (cancelled) return;
+        setDriverLocation({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+          heading: loc.coords.heading ?? undefined,
+        });
+      } catch (e) {
+        console.warn("[DriverNavigation] initial location error", e);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const handleStartNavigation = async () => {
-    setNavigating(true);
-    setCurrentStep(0);
-    // Mark order as en_route in backend (non-blocking: navigation simulation proceeds even if this fails)
-    if (orderId) {
+  // 2) Continuously watch position once we're in navigating mode.
+  useEffect(() => {
+    if (!navigating) return;
+    let cancelled = false;
+    (async () => {
       try {
-        await markEnRoute(orderId, Math.max(1, directions.length * 2));
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        Alert.alert(
-          "Status Update Notice",
-          `Could not update order status to en-route. You can still navigate to the customer.\n\nReason: ${message}`,
+        const sub = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.BestForNavigation,
+            distanceInterval: 5,
+            timeInterval: 2000,
+          },
+          (loc) => {
+            if (cancelled) return;
+            setDriverLocation({
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+              heading: loc.coords.heading ?? undefined,
+            });
+          },
         );
+        watchSub.current = sub;
+      } catch (e) {
+        console.warn("[DriverNavigation] watchPosition failed", e);
       }
-    } else {
-      console.warn("DriverNavigation: orderId is undefined, skipping markEnRoute");
+    })();
+    return () => {
+      cancelled = true;
+      watchSub.current?.remove();
+      watchSub.current = null;
+    };
+  }, [navigating]);
+
+  // Re-fetch the route on ~100m driver movement (rounded) — not every GPS tick,
+  // which would burn through the Directions API free tier.
+  const routeAnchorKey = driverLocation
+    ? `${Math.round(driverLocation.latitude * 1000)},${Math.round(driverLocation.longitude * 1000)}`
+    : null;
+
+  // 3) Fetch route from Mapbox Directions whenever we have both endpoints.
+  useEffect(() => {
+    if (!driverLocation) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await getDrivingDirections([
+          { latitude: driverLocation.latitude, longitude: driverLocation.longitude },
+          { latitude: destination.latitude, longitude: destination.longitude },
+        ]);
+        if (cancelled) return;
+        if (r) {
+          setDirections(r);
+          setRouteError(null);
+        } else {
+          setRouteError("No route available");
+        }
+      } catch (e: any) {
+        if (cancelled) return;
+        console.warn("[DriverNavigation] directions error", e);
+        setRouteError(e?.message ?? "Routing failed");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigating, destination.latitude, destination.longitude, routeAnchorKey]);
+
+  // 4) Auto-advance step when driver gets within 30m of the step end point.
+  useEffect(() => {
+    if (!navigating || !driverLocation || !directions) return;
+    const step = directions.steps[currentStepIdx];
+    if (!step || !step.geometry.length) return;
+    const lastCoord = step.geometry[step.geometry.length - 1];
+    const endPoint = { latitude: lastCoord[1], longitude: lastCoord[0] };
+    const d = distanceMeters(driverLocation, endPoint);
+    if (d < 30) {
+      if (currentStepIdx < directions.steps.length - 1) {
+        setCurrentStepIdx((i) => i + 1);
+      } else {
+        // Last step — check arrival at destination
+        const arrivalDist = distanceMeters(driverLocation, destination);
+        if (arrivalDist < 40) setArrived(true);
+      }
     }
-    mapRef.current?.fitToCoordinates(routeCoords, {
-      edgePadding: { top: 150, right: 60, bottom: 320, left: 60 },
-      animated: true,
+  }, [driverLocation, navigating, directions, currentStepIdx, destination]);
+
+  const handleStartNavigation = async () => {
+    if (!driverLocation) {
+      Alert.alert(
+        "Location Required",
+        "We need your GPS location to start turn-by-turn navigation. Please enable location access in Settings.",
+      );
+      return;
+    }
+    setNavigating(true);
+    setCurrentStepIdx(0);
+    setArrived(false);
+
+    // Only transition picked_up → en_route. In "resume" mode the order is
+    // already en_route (driver re-opened nav after backgrounding the app) so
+    // the transition would be invalid; just kick off in-app nav. In any other
+    // mode the Start button shouldn't have been rendered — guard anyway.
+    if (orderId && navMode === "start") {
+      const eta = directions ? Math.max(1, Math.round(directions.duration / 60)) : 10;
+      try {
+        await markEnRoute(orderId, eta);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        console.warn("[DriverNavigation] markEnRoute failed:", message);
+      }
+    }
+
+    // Switch camera to follow mode
+    cameraRef.current?.setCamera({
+      centerCoordinate: [driverLocation.longitude, driverLocation.latitude],
+      zoomLevel: 17,
+      pitch: 55,
+      heading: driverLocation.heading ?? 0,
+      animationDuration: 800,
     });
   };
 
-  const handleNextDirection = () => {
-    if (currentStep < directions.length - 2) {
-      const nextStep = currentStep + 1;
-      setCurrentStep(nextStep);
-      // Move driver along route
-      const routeIdx = Math.min(
-        Math.round(((nextStep + 1) / directions.length) * routeCoords.length),
-        routeCoords.length - 1,
-      );
-      setDriverLocation(routeCoords[routeIdx]);
-      mapRef.current?.animateToRegion(
-        {
-          latitude: routeCoords[routeIdx].latitude,
-          longitude: routeCoords[routeIdx].longitude,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        },
-        500,
-      );
-    } else {
-      // Arrived at customer
-      setArrived(true);
-      setDriverLocation(routeCoords[routeCoords.length - 1]);
-      mapRef.current?.animateToRegion(
-        {
-          latitude: customerLoc.latitude,
-          longitude: customerLoc.longitude,
-          latitudeDelta: 0.004,
-          longitudeDelta: 0.004,
-        },
-        500,
-      );
-    }
+  const handleRecenter = () => {
+    if (!driverLocation) return;
+    cameraRef.current?.setCamera({
+      centerCoordinate: [driverLocation.longitude, driverLocation.latitude],
+      zoomLevel: navigating ? 17 : 14,
+      pitch: navigating ? 55 : 0,
+      heading: navigating ? (driverLocation.heading ?? 0) : 0,
+      animationDuration: 600,
+    });
   };
 
-  const handleRecenter = () => {
-    mapRef.current?.animateToRegion(
-      {
-        latitude: driverLocation.latitude,
-        longitude: driverLocation.longitude,
-        latitudeDelta: 0.006,
-        longitudeDelta: 0.006,
-      },
-      400,
+  const handleFitRoute = useCallback(() => {
+    if (!directions || !driverLocation) return;
+    const coords = directions.geometry.coordinates;
+    let minLng = coords[0][0], maxLng = coords[0][0];
+    let minLat = coords[0][1], maxLat = coords[0][1];
+    for (const [lng, lat] of coords) {
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+    }
+    cameraRef.current?.fitBounds(
+      [minLng, minLat],
+      [maxLng, maxLat],
+      [140, 60, 320, 60],
+      900,
     );
-  };
+  }, [directions, driverLocation]);
+
+  // Fit route once on first load.
+  useEffect(() => {
+    if (directions && !navigating) handleFitRoute();
+  }, [directions, navigating, handleFitRoute]);
 
   const handleCallCustomer = () => {
-    const phone = delivery?.customerPhone;
-    if (phone) {
-      const telUrl = `tel:${phone}`;
-      Linking.canOpenURL(telUrl)
-        .then((supported) => {
-          if (supported) {
-            Linking.openURL(telUrl);
-          } else {
-            Alert.alert("Cannot Place Call", `Unable to open dialer for ${phone}.`);
-          }
-        })
-        .catch(() => {
-          Alert.alert("Cannot Place Call", `Unable to open dialer for ${phone}.`);
-        });
-    } else {
+    if (!customerPhone) {
       Alert.alert("No Phone Number", "Customer phone number is not available.");
+      return;
     }
+    const telUrl = `tel:${customerPhone}`;
+    Linking.canOpenURL(telUrl)
+      .then((supported) =>
+        supported
+          ? Linking.openURL(telUrl)
+          : Alert.alert("Cannot Place Call", `Unable to open dialer for ${customerPhone}.`),
+      )
+      .catch(() =>
+        Alert.alert("Cannot Place Call", `Unable to open dialer for ${customerPhone}.`),
+      );
   };
 
   const handleDelivered = () => {
-    // Navigate to PIN verification screen instead of direct delivery confirmation
-    navigation.navigate("DriverDeliveryPinVerify", { delivery: { ...delivery, orderId } });
+    navigation.navigate("DriverDeliveryPinVerify", {
+      delivery: { ...(delivery || {}), orderId, customerName, customerPhone, address: destination.address, orderNumber, total: orderTotal, items: orderItems },
+    });
   };
 
   const handleReportIssue = () => {
@@ -220,11 +402,9 @@ export default function DriverNavigation() {
           style: "destructive",
           onPress: async () => {
             try {
-              if (orderId) {
-                await updateOrderStatus(orderId, "delivery_failed", { reason: "Vehicle Breakdown" });
-              }
+              if (orderId) await updateOrderStatus(orderId, "delivery_failed", { reason: "Vehicle Breakdown" });
             } catch (e) {
-              console.warn("[DriverNavigation] Failed to update status:", e);
+              console.warn("[DriverNavigation] updateOrderStatus failed:", e);
             }
             Alert.alert("Issue Reported", "Dispatch has been notified of your vehicle breakdown.");
             navigation.goBack();
@@ -234,11 +414,9 @@ export default function DriverNavigation() {
           text: "Road Blocked",
           onPress: async () => {
             try {
-              if (orderId) {
-                await updateOrderStatus(orderId, "delivery_failed", { reason: "Road Blocked" });
-              }
+              if (orderId) await updateOrderStatus(orderId, "delivery_failed", { reason: "Road Blocked" });
             } catch (e) {
-              console.warn("[DriverNavigation] Failed to update status:", e);
+              console.warn("[DriverNavigation] updateOrderStatus failed:", e);
             }
             Alert.alert("Issue Reported", "Dispatch has been notified of the road blockage.");
             navigation.goBack();
@@ -249,11 +427,9 @@ export default function DriverNavigation() {
           style: "destructive",
           onPress: async () => {
             try {
-              if (orderId) {
-                await updateOrderStatus(orderId, "delivery_failed", { reason: "Emergency" });
-              }
+              if (orderId) await updateOrderStatus(orderId, "delivery_failed", { reason: "Emergency" });
             } catch (e) {
-              console.warn("[DriverNavigation] Failed to update status:", e);
+              console.warn("[DriverNavigation] updateOrderStatus failed:", e);
             }
             Alert.alert("Issue Reported", "Dispatch has been notified of your emergency.");
             navigation.goBack();
@@ -264,63 +440,94 @@ export default function DriverNavigation() {
     );
   };
 
-  const remainingDist = navigating
-    ? `${((directions.length - currentStep) * 0.2).toFixed(1)} km`
-    : delivery?.distance || "3.2 km";
-  const eta = navigating
-    ? `${Math.max(1, (directions.length - currentStep) * 2)} min`
-    : delivery?.estimatedTime || "12 min";
+  // Derived display values pulled from real directions data when available.
+  const remainingDistText = directions ? formatDistance(directions.distance) : "—";
+  const etaText = directions ? formatDuration(directions.duration) : "—";
+  const currentStep: DirectionsStep | undefined = directions?.steps[currentStepIdx];
+  const nextStep: DirectionsStep | undefined = directions?.steps[currentStepIdx + 1];
+
+  // GeoJSON for the route polyline.
+  const routeFeature = useMemo(() => {
+    if (!directions) return null;
+    return {
+      type: "Feature" as const,
+      properties: {},
+      geometry: directions.geometry,
+    };
+  }, [directions]);
+
+  const centerCoord: [number, number] = driverLocation
+    ? [driverLocation.longitude, driverLocation.latitude]
+    : [destination.longitude, destination.latitude];
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background.primary }}>
-      {/* Demo mode banner */}
-      {IS_MOCK_ROUTING && (
-        <View style={{ position: "absolute", top: insets.top + 10, left: 16, right: 16, zIndex: 999, backgroundColor: "#FFA50090", borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, alignItems: "center" }}>
-          <Text style={{ color: "#000", fontSize: 12, fontWeight: "600" }}>
-            Demo Mode — Simulated Route (no real routing API)
-          </Text>
-        </View>
-      )}
-      {/* Full-screen Map */}
+      {/* Full-screen Mapbox map */}
       <MapView
-        ref={mapRef}
         style={StyleSheet.absoluteFill}
-        provider={PROVIDER_DEFAULT}
-        initialRegion={{
-          latitude: (DEPOT_LOC.latitude + customerLoc.latitude) / 2,
-          longitude: (DEPOT_LOC.longitude + customerLoc.longitude) / 2,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02,
-        }}
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-        showsCompass={false}
+        styleURL={isDark ? StyleURL.Dark : StyleURL.Street}
+        logoEnabled={false}
+        attributionEnabled={false}
+        compassEnabled={false}
+        scaleBarEnabled={false}
+        pitchEnabled
+        rotateEnabled
       >
-        {/* Driver marker */}
-        <Marker coordinate={driverLocation} anchor={{ x: 0.5, y: 0.5 }}>
-          <View style={st.driverMarker}>
-            <Icon name="car" size={18} color={colors.white} />
-          </View>
-        </Marker>
+        <Camera
+          ref={cameraRef}
+          defaultSettings={{
+            centerCoordinate: centerCoord,
+            zoomLevel: 14,
+          }}
+        />
 
-        {/* Customer marker */}
-        <Marker coordinate={customerLoc} anchor={{ x: 0.5, y: 1 }}>
+        {/* Live driver puck */}
+        {!locDenied && (
+          <UserLocation
+            visible
+            showsUserHeadingIndicator
+            androidRenderMode="gps"
+          />
+        )}
+
+        {/* Route polyline */}
+        {routeFeature && (
+          <ShapeSource id="routeSource" shape={routeFeature as any}>
+            <LineLayer
+              id="routeOutline"
+              style={{
+                lineColor: "#1E40AF",
+                lineWidth: 9,
+                lineCap: "round",
+                lineJoin: "round",
+                lineOpacity: 0.9,
+              }}
+            />
+            <LineLayer
+              id="routeLine"
+              style={{
+                lineColor: "#3B82F6",
+                lineWidth: 6,
+                lineCap: "round",
+                lineJoin: "round",
+              }}
+            />
+          </ShapeSource>
+        )}
+
+        {/* Destination pin */}
+        <PointAnnotation
+          id="dest"
+          coordinate={[destination.longitude, destination.latitude]}
+          anchor={{ x: 0.5, y: 1 }}
+        >
           <View style={st.customerMarkerWrap}>
             <LinearGradient colors={[colors.gold.primary, colors.gold.dark]} style={st.customerPin}>
               <Icon name="person" size={16} color={colors.white} />
             </LinearGradient>
             <View style={st.customerPinArrow} />
           </View>
-        </Marker>
-
-        {/* Route polyline */}
-        <Polyline
-          coordinates={routeCoords}
-          strokeColor={colors.status.info}
-          strokeWidth={5}
-          lineCap="round"
-          lineJoin="round"
-        />
+        </PointAnnotation>
       </MapView>
 
       {/* Top bar */}
@@ -349,10 +556,10 @@ export default function DriverNavigation() {
           ]}
         >
           <Icon name="time-outline" size={16} color={colors.status.info} />
-          <Text style={[st.etaText, { color: colors.text.primary }]}>{eta}</Text>
+          <Text style={[st.etaText, { color: colors.text.primary }]}>{etaText}</Text>
           <View style={[st.etaDivider, { backgroundColor: colors.gold.border }]} />
           <Icon name="navigate-outline" size={16} color={colors.status.info} />
-          <Text style={[st.etaText, { color: colors.text.primary }]}>{remainingDist}</Text>
+          <Text style={[st.etaText, { color: colors.text.primary }]}>{remainingDistText}</Text>
         </View>
 
         <TouchableOpacity onPress={handleRecenter}>
@@ -384,8 +591,34 @@ export default function DriverNavigation() {
         </TouchableOpacity>
       </View>
 
-      {/* Direction Card */}
-      {navigating && !arrived && (
+      {/* Permission warning */}
+      {locDenied && (
+        <View
+          style={[
+            st.warningBanner,
+            { top: insets.top + 66, backgroundColor: "#F59E0B" },
+          ]}
+        >
+          <Icon name="warning-outline" size={18} color="#000" />
+          <Text style={st.warningText}>Location access denied — enable it in Settings to navigate.</Text>
+        </View>
+      )}
+
+      {/* Routing error banner */}
+      {routeError && !locDenied && (
+        <View
+          style={[
+            st.warningBanner,
+            { top: insets.top + 66, backgroundColor: "#EF4444" },
+          ]}
+        >
+          <Icon name="alert-circle-outline" size={18} color="#FFF" />
+          <Text style={[st.warningText, { color: "#FFF" }]}>Routing unavailable — {routeError}</Text>
+        </View>
+      )}
+
+      {/* Maneuver card (turn-by-turn) */}
+      {navigating && !arrived && currentStep && (
         <View
           style={[
             st.directionCard,
@@ -398,27 +631,20 @@ export default function DriverNavigation() {
         >
           <View style={[st.dirIcon, { backgroundColor: colors.status.info + "18" }]}>
             <Icon
-              name={directions[currentStep]?.icon || "arrow-up-outline"}
-              size={24}
+              name={maneuverIcon(currentStep.maneuverType, currentStep.maneuverModifier) as any}
+              size={26}
               color={colors.status.info}
             />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[st.dirInstruction, { color: colors.text.primary }]}>
-              {directions[currentStep]?.instruction}
+            <Text style={[st.dirInstruction, { color: colors.text.primary }]} numberOfLines={2}>
+              {currentStep.instruction}
             </Text>
-            {directions[currentStep]?.distance ? (
-              <Text style={{ color: colors.text.dim, fontSize: 13 }}>
-                {directions[currentStep].distance}
-              </Text>
-            ) : null}
+            <Text style={{ color: colors.text.dim, fontSize: 13 }}>
+              {formatDistance(currentStep.distance)}
+              {nextStep ? `  •  then ${nextStep.instruction.split(" ").slice(0, 4).join(" ")}…` : ""}
+            </Text>
           </View>
-          <TouchableOpacity
-            onPress={handleNextDirection}
-            style={[st.nextStepBtn, { backgroundColor: colors.status.info }]}
-          >
-            <Icon name="chevron-forward" size={20} color={colors.white} />
-          </TouchableOpacity>
         </View>
       )}
 
@@ -427,10 +653,7 @@ export default function DriverNavigation() {
         <View
           style={[
             st.arrivedBanner,
-            { top: insets.top + 66 },
-            {
-              backgroundColor: isDark ? "rgba(16,185,129,0.95)" : "rgba(16,185,129,0.95)",
-            },
+            { top: insets.top + 66, backgroundColor: "rgba(16,185,129,0.95)" },
           ]}
         >
           <Icon name="checkmark-circle" size={22} color={colors.white} />
@@ -438,7 +661,7 @@ export default function DriverNavigation() {
         </View>
       )}
 
-      {/* Bottom Card */}
+      {/* Bottom card */}
       <View
         style={[
           st.bottomCard,
@@ -449,17 +672,16 @@ export default function DriverNavigation() {
           },
         ]}
       >
-        {/* Customer row */}
         <View style={st.customerRow}>
           <View style={[st.customerAvatar, { backgroundColor: colors.gold.primary + "18" }]}>
             <Icon name="person" size={22} color={colors.gold.primary} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[st.customerName, { color: colors.text.primary }]}>
-              {delivery?.customerName || "Customer"}
+            <Text style={[st.customerName, { color: colors.text.primary }]} numberOfLines={1}>
+              {customerName}
             </Text>
             <Text style={{ color: colors.text.muted, fontSize: 12 }} numberOfLines={1}>
-              {address}
+              {destination.address}
             </Text>
           </View>
           <TouchableOpacity onPress={handleCallCustomer}>
@@ -469,7 +691,6 @@ export default function DriverNavigation() {
           </TouchableOpacity>
         </View>
 
-        {/* Order info */}
         <View
           style={[
             st.orderStrip,
@@ -481,51 +702,102 @@ export default function DriverNavigation() {
         >
           <View style={st.stripItem}>
             <Icon name="cube-outline" size={14} color={colors.text.dim} />
-            <Text style={{ color: colors.text.dim, fontSize: 12 }}>
-              {delivery?.items || 0} items
-            </Text>
+            <Text style={{ color: colors.text.dim, fontSize: 12 }}>{orderItems} items</Text>
           </View>
           <View style={st.stripItem}>
             <Icon name="receipt-outline" size={14} color={colors.text.dim} />
-            <Text style={{ color: colors.text.dim, fontSize: 12 }}>
-              #{delivery?.orderNumber || "N/A"}
-            </Text>
+            <Text style={{ color: colors.text.dim, fontSize: 12 }}>#{orderNumber || "N/A"}</Text>
           </View>
           <Text
             style={{ color: colors.gold.primary, fontWeight: "800", fontSize: 15, marginLeft: "auto" }}
           >
-            R{delivery?.total ? Math.round(delivery.total).toLocaleString('en-ZA') : "0"}
+            R{orderTotal ? Math.round(orderTotal).toLocaleString("en-ZA") : "0"}
           </Text>
         </View>
 
-        {/* Actions */}
-        {!navigating && !arrived && (
-          <TouchableOpacity onPress={handleStartNavigation} activeOpacity={0.85}>
+        {/* Primary action — branches on navMode so we never attempt an
+            invalid state-machine transition (e.g. ready → en_route). */}
+        {!navigating && !arrived && navMode === "needs_pickup" && (
+          <>
+            <View style={[st.gateBanner, { backgroundColor: "#F59E0B22", borderColor: "#F59E0B" }]}>
+              <Icon name="information-circle-outline" size={18} color="#F59E0B" />
+              <Text style={[st.gateText, { color: colors.text.primary }]}>
+                You haven't picked up this order yet. Head to the depot first to
+                collect the goods.
+              </Text>
+            </View>
+            <TouchableOpacity onPress={goToDepotPickup} activeOpacity={0.85}>
+              <LinearGradient
+                colors={["#F59E0B", "#D97706"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={st.primaryBtn}
+              >
+                <Icon name="business-outline" size={22} color={colors.white} />
+                <Text style={st.primaryBtnText}>Go to Depot Pickup</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {!navigating && !arrived && navMode === "needs_pin" && (
+          <>
+            <View style={[st.gateBanner, { backgroundColor: "#10B98122", borderColor: "#10B981" }]}>
+              <Icon name="checkmark-circle-outline" size={18} color="#10B981" />
+              <Text style={[st.gateText, { color: colors.text.primary }]}>
+                You've already arrived at this customer. Verify the delivery PIN
+                to complete the drop.
+              </Text>
+            </View>
+            <TouchableOpacity onPress={goToDeliveryPin} activeOpacity={0.85}>
+              <LinearGradient
+                colors={[colors.status.success, "#059669"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={st.primaryBtn}
+              >
+                <Icon name="keypad" size={22} color={colors.white} />
+                <Text style={st.primaryBtnText}>Verify Delivery PIN</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {!navigating && !arrived && (navMode === "start" || navMode === "resume" || navMode === "unknown") && (
+          <TouchableOpacity onPress={handleStartNavigation} activeOpacity={0.85} disabled={!driverLocation}>
+            <LinearGradient
+              colors={
+                driverLocation
+                  ? [colors.status.info, "#2563EB"]
+                  : ["#9CA3AF", "#6B7280"]
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={st.primaryBtn}
+            >
+              <Icon name="navigate" size={22} color={colors.white} />
+              <Text style={st.primaryBtnText}>
+                {!driverLocation
+                  ? "Getting GPS fix…"
+                  : navMode === "resume"
+                    ? "Resume Navigation"
+                    : "Start Navigation"}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
+        {navigating && !arrived && (
+          <TouchableOpacity onPress={handleRecenter} activeOpacity={0.85}>
             <LinearGradient
               colors={[colors.status.info, "#2563EB"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={st.primaryBtn}
             >
-              <Icon name="navigate" size={22} color={colors.white} />
-              <Text style={st.primaryBtnText}>Start Navigation to Customer</Text>
+              <Icon name="locate-outline" size={22} color={colors.white} />
+              <Text style={st.primaryBtnText}>Recenter on me</Text>
             </LinearGradient>
-          </TouchableOpacity>
-        )}
-
-        {navigating && !arrived && (
-          <TouchableOpacity onPress={handleNextDirection} activeOpacity={0.85}>
-            <Animated.View style={{ opacity: pulseAnim }}>
-              <LinearGradient
-                colors={[colors.status.info, "#2563EB"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={st.primaryBtn}
-              >
-                <Icon name="navigate-outline" size={22} color={colors.white} />
-                <Text style={st.primaryBtnText}>Navigating... Tap for next step</Text>
-              </LinearGradient>
-            </Animated.View>
           </TouchableOpacity>
         )}
 
@@ -576,28 +848,9 @@ const st = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
   },
-  etaText: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  etaDivider: {
-    width: 1,
-    height: 18,
-    marginHorizontal: 4,
-  },
-  driverMarker: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#3B82F6",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 3,
-    borderColor: "#FFF",
-  },
-  customerMarkerWrap: {
-    alignItems: "center",
-  },
+  etaText: { fontSize: 14, fontWeight: "700" },
+  etaDivider: { width: 1, height: 18, marginHorizontal: 4 },
+  customerMarkerWrap: { alignItems: "center" },
   customerPin: {
     width: 34,
     height: 34,
@@ -631,24 +884,26 @@ const st = StyleSheet.create({
     zIndex: 10,
   },
   dirIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
   },
-  dirInstruction: {
-    fontSize: 15,
-    fontWeight: "700",
-    marginBottom: 2,
-  },
-  nextStepBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
+  dirInstruction: { fontSize: 15, fontWeight: "700", marginBottom: 2 },
+  warningBanner: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    flexDirection: "row",
     alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: borderRadius.lg,
+    zIndex: 10,
   },
+  warningText: { color: "#000", fontSize: 13, fontWeight: "700", flex: 1 },
   arrivedBanner: {
     position: "absolute",
     left: 16,
@@ -661,11 +916,7 @@ const st = StyleSheet.create({
     borderRadius: borderRadius.lg,
     zIndex: 10,
   },
-  arrivedText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "800",
-  },
+  arrivedText: { color: "#FFF", fontSize: 16, fontWeight: "800" },
   bottomCard: {
     position: "absolute",
     bottom: 0,
@@ -690,11 +941,7 @@ const st = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  customerName: {
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 1,
-  },
+  customerName: { fontSize: 16, fontWeight: "800", marginBottom: 1 },
   callBtn: {
     width: 42,
     height: 42,
@@ -711,11 +958,7 @@ const st = StyleSheet.create({
     gap: 14,
     marginBottom: 14,
   },
-  stripItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
+  stripItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   primaryBtn: {
     height: 56,
     borderRadius: borderRadius.full,
@@ -724,9 +967,15 @@ const st = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
-  primaryBtnText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "800",
+  primaryBtnText: { color: "#FFF", fontSize: 16, fontWeight: "800" },
+  gateBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    marginBottom: 12,
   },
+  gateText: { fontSize: 13, fontWeight: "600", flex: 1, lineHeight: 18 },
 });

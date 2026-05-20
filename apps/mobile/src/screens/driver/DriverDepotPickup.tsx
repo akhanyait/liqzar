@@ -1,31 +1,56 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Alert,
-  Dimensions,
-  Animated,
 } from "react-native";
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
+import {
+  MapView,
+  Camera,
+  ShapeSource,
+  LineLayer,
+  PointAnnotation,
+  UserLocation,
+  StyleURL,
+} from "@rnmapbox/maps";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { Icon } from "../../components/Icon";
 import { useTheme } from "../../contexts/ThemeContext";
-import { spacing, borderRadius } from "../../theme";
+import { borderRadius } from "../../theme";
+import {
+  getDrivingDirections,
+  formatDistance,
+  formatDuration,
+  maneuverIcon,
+  type DirectionsRoute,
+  type DirectionsStep,
+} from "../../services/MapboxDirections";
 
-const { width } = Dimensions.get("window");
+// Haversine distance in metres.
+function distanceMeters(
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLng = toRad(b.longitude - a.longitude);
+  const lat1 = toRad(a.latitude);
+  const lat2 = toRad(b.latitude);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
 
-/**
- * Routing data below is SIMULATED. There is no real routing API integration.
- * All coordinates, routes, and directions are hardcoded Cape Town data.
- */
-const IS_MOCK_ROUTING = true;
-
-// Mock depot location (Cape Town CBD depot)
+// Single LIQZAR depot for now. When multi-depot is introduced this should
+// come from app config or the order record (e.g. order.fulfillment_depot_id
+// resolved against a depots table).
 const DEPOT = {
   name: "LIQZAR Central Depot",
   address: "12 Buitengracht St, Cape Town, 8001",
@@ -33,183 +58,299 @@ const DEPOT = {
   longitude: 18.4184,
 };
 
-// Simulated route from driver to depot (realistic Cape Town streets)
-const ROUTE_TO_DEPOT = [
-  { latitude: -33.9165, longitude: 18.4230 },
-  { latitude: -33.9170, longitude: 18.4222 },
-  { latitude: -33.9178, longitude: 18.4215 },
-  { latitude: -33.9185, longitude: 18.4210 },
-  { latitude: -33.9190, longitude: 18.4205 },
-  { latitude: -33.9195, longitude: 18.4200 },
-  { latitude: -33.9200, longitude: 18.4195 },
-  { latitude: -33.9205, longitude: 18.4190 },
-  { latitude: -33.9210, longitude: 18.4186 },
-  { latitude: DEPOT.latitude, longitude: DEPOT.longitude },
-];
-
-// Mock turn-by-turn directions
-const DIRECTIONS = [
-  { instruction: "Head south on Strand St", distance: "200m", icon: "arrow-up-outline" },
-  { instruction: "Turn right onto Buitengracht St", distance: "350m", icon: "arrow-forward-outline" },
-  { instruction: "Continue for 400m", distance: "400m", icon: "arrow-up-outline" },
-  { instruction: "Arrive at LIQZAR Central Depot", distance: "", icon: "flag-outline" },
-];
-
 export default function DriverDepotPickup() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { colors, isDark } = useTheme();
-  const mapRef = useRef<MapView>(null);
-  const pulseAnim = useRef(new Animated.Value(0.4)).current;
+
+  const cameraRef = useRef<Camera>(null);
+  const watchSub = useRef<Location.LocationSubscription | null>(null);
 
   const delivery = route.params?.delivery;
-  const [driverLocation, setDriverLocation] = useState(ROUTE_TO_DEPOT[0]);
-  const [currentStep, setCurrentStep] = useState(0);
+
+  // Live driver GPS — same pattern as DriverNavigation.
+  const [driverLocation, setDriverLocation] = useState<{
+    latitude: number;
+    longitude: number;
+    heading?: number;
+  } | null>(null);
+  const [locDenied, setLocDenied] = useState(false);
+
+  // Mapbox Directions state.
+  const [directions, setDirections] = useState<DirectionsRoute | null>(null);
+  const [routeError, setRouteError] = useState<string | null>(null);
   const [navigating, setNavigating] = useState(false);
-  const [arrivedAtDepot, setArrivedAtDepot] = useState(false);
+  const [arrived, setArrived] = useState(false);
+  const [currentStepIdx, setCurrentStepIdx] = useState(0);
 
-  // Pulse animation for the navigate button
+  // Initial GPS fix.
   useEffect(() => {
-    if (!navigating) return;
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 0.4, duration: 1000, useNativeDriver: true }),
-      ]),
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [navigating]);
-
-  // Request location permission
-  useEffect(() => {
+    let cancelled = false;
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === "granted") {
-        const loc = await Location.getCurrentPositionAsync({});
-        // Use real location if close enough to Cape Town, else use mock
-        if (Math.abs(loc.coords.latitude - DEPOT.latitude) < 1) {
-          setDriverLocation({
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-          });
-        }
+      if (cancelled) return;
+      if (status !== "granted") {
+        setLocDenied(true);
+        return;
+      }
+      try {
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+        if (cancelled) return;
+        setDriverLocation({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+          heading: loc.coords.heading ?? undefined,
+        });
+      } catch (e) {
+        console.warn("[DriverDepotPickup] initial location error", e);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const handleStartNavigation = () => {
-    setNavigating(true);
-    setCurrentStep(0);
-    // Fit map to show entire route
-    mapRef.current?.fitToCoordinates(ROUTE_TO_DEPOT, {
-      edgePadding: { top: 120, right: 60, bottom: 300, left: 60 },
-      animated: true,
-    });
-  };
+  // Continuously watch position once navigating.
+  useEffect(() => {
+    if (!navigating) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const sub = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.BestForNavigation,
+            distanceInterval: 5,
+            timeInterval: 2000,
+          },
+          (loc) => {
+            if (cancelled) return;
+            setDriverLocation({
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+              heading: loc.coords.heading ?? undefined,
+            });
+          },
+        );
+        watchSub.current = sub;
+      } catch (e) {
+        console.warn("[DriverDepotPickup] watchPosition failed", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      watchSub.current?.remove();
+      watchSub.current = null;
+    };
+  }, [navigating]);
 
-  const handleNextDirection = () => {
-    if (currentStep < DIRECTIONS.length - 2) {
-      setCurrentStep((p) => p + 1);
-      // Animate driver position along route
-      const nextIdx = Math.min(currentStep + 2, ROUTE_TO_DEPOT.length - 1);
-      setDriverLocation(ROUTE_TO_DEPOT[nextIdx]);
-      mapRef.current?.animateToRegion(
-        {
-          latitude: ROUTE_TO_DEPOT[nextIdx].latitude,
-          longitude: ROUTE_TO_DEPOT[nextIdx].longitude,
-          latitudeDelta: 0.006,
-          longitudeDelta: 0.006,
-        },
-        500,
-      );
-    } else {
-      // Arrived at depot
-      setArrivedAtDepot(true);
-      setDriverLocation(ROUTE_TO_DEPOT[ROUTE_TO_DEPOT.length - 1]);
+  // Re-fetch route on ~100m movement (rounded), not every GPS tick.
+  const routeAnchorKey = driverLocation
+    ? `${Math.round(driverLocation.latitude * 1000)},${Math.round(driverLocation.longitude * 1000)}`
+    : null;
+
+  // Fetch Mapbox Directions driver → depot.
+  useEffect(() => {
+    if (!driverLocation) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await getDrivingDirections([
+          { latitude: driverLocation.latitude, longitude: driverLocation.longitude },
+          { latitude: DEPOT.latitude, longitude: DEPOT.longitude },
+        ]);
+        if (cancelled) return;
+        if (r) {
+          setDirections(r);
+          setRouteError(null);
+        } else {
+          setRouteError("No route available");
+        }
+      } catch (e: any) {
+        if (cancelled) return;
+        console.warn("[DriverDepotPickup] directions error", e);
+        setRouteError(e?.message ?? "Routing failed");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigating, routeAnchorKey]);
+
+  // Auto-advance step when within 30m of the step end.
+  useEffect(() => {
+    if (!navigating || !driverLocation || !directions) return;
+    const step = directions.steps[currentStepIdx];
+    if (!step || !step.geometry.length) return;
+    const lastCoord = step.geometry[step.geometry.length - 1];
+    const endPoint = { latitude: lastCoord[1], longitude: lastCoord[0] };
+    const d = distanceMeters(driverLocation, endPoint);
+    if (d < 30) {
+      if (currentStepIdx < directions.steps.length - 1) {
+        setCurrentStepIdx((i) => i + 1);
+      } else {
+        // Last step — auto-arrive when within 40m of the depot.
+        const arrivalDist = distanceMeters(driverLocation, DEPOT);
+        if (arrivalDist < 40) setArrived(true);
+      }
     }
-  };
+  }, [driverLocation, navigating, directions, currentStepIdx]);
 
-  const handleRecenter = () => {
-    mapRef.current?.animateToRegion(
-      {
-        latitude: driverLocation.latitude,
-        longitude: driverLocation.longitude,
-        latitudeDelta: 0.008,
-        longitudeDelta: 0.008,
-      },
-      400,
+  const handleStartNavigation = useCallback(() => {
+    if (!driverLocation) {
+      Alert.alert(
+        "Location Required",
+        "We need your GPS location to navigate to the depot. Please enable location access in Settings.",
+      );
+      return;
+    }
+    setNavigating(true);
+    setCurrentStepIdx(0);
+    setArrived(false);
+    // Camera → follow mode.
+    cameraRef.current?.setCamera({
+      centerCoordinate: [driverLocation.longitude, driverLocation.latitude],
+      zoomLevel: 17,
+      pitch: 55,
+      heading: driverLocation.heading ?? 0,
+      animationDuration: 800,
+    });
+  }, [driverLocation]);
+
+  const handleRecenter = useCallback(() => {
+    if (!driverLocation) return;
+    cameraRef.current?.setCamera({
+      centerCoordinate: [driverLocation.longitude, driverLocation.latitude],
+      zoomLevel: navigating ? 17 : 14,
+      pitch: navigating ? 55 : 0,
+      heading: navigating ? (driverLocation.heading ?? 0) : 0,
+      animationDuration: 600,
+    });
+  }, [driverLocation, navigating]);
+
+  const handleFitRoute = useCallback(() => {
+    if (!directions || !driverLocation) return;
+    const coords = directions.geometry.coordinates;
+    let minLng = coords[0][0], maxLng = coords[0][0];
+    let minLat = coords[0][1], maxLat = coords[0][1];
+    for (const [lng, lat] of coords) {
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+    }
+    cameraRef.current?.fitBounds(
+      [minLng, minLat],
+      [maxLng, maxLat],
+      [140, 60, 320, 60],
+      900,
     );
-  };
+  }, [directions, driverLocation]);
 
-  const handleArrivedConfirm = () => {
+  // Frame the whole route once on first load.
+  useEffect(() => {
+    if (directions && !navigating) handleFitRoute();
+  }, [directions, navigating, handleFitRoute]);
+
+  const handleArrivedConfirm = useCallback(() => {
     navigation.navigate("DriverScanVerify", { delivery });
-  };
+  }, [navigation, delivery]);
 
-  const remainingDistance = navigating
-    ? `${((DIRECTIONS.length - currentStep) * 0.25).toFixed(1)} km`
-    : "1.0 km";
-  const eta = navigating
-    ? `${Math.max(1, (DIRECTIONS.length - currentStep) * 2)} min`
-    : "4 min";
+  // Display values from real Mapbox data.
+  const remainingDistText = directions ? formatDistance(directions.distance) : "—";
+  const etaText = directions ? formatDuration(directions.duration) : "—";
+  const currentStep: DirectionsStep | undefined = directions?.steps[currentStepIdx];
+  const nextStep: DirectionsStep | undefined = directions?.steps[currentStepIdx + 1];
+
+  const routeFeature = useMemo(() => {
+    if (!directions) return null;
+    return {
+      type: "Feature" as const,
+      properties: {},
+      geometry: directions.geometry,
+    };
+  }, [directions]);
+
+  const centerCoord: [number, number] = driverLocation
+    ? [driverLocation.longitude, driverLocation.latitude]
+    : [DEPOT.longitude, DEPOT.latitude];
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background.primary }}>
-      {/* Demo mode banner */}
-      {IS_MOCK_ROUTING && (
-        <View style={{ position: "absolute", top: insets.top + 10, left: 16, right: 16, zIndex: 999, backgroundColor: "#FFA50090", borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, alignItems: "center" }}>
-          <Text style={{ color: "#000", fontSize: 12, fontWeight: "600" }}>
-            Demo Mode — Simulated Route (no real routing API)
-          </Text>
-        </View>
-      )}
-      {/* Full-screen Map */}
+      {/* Full-screen Mapbox map */}
       <MapView
-        ref={mapRef}
         style={StyleSheet.absoluteFill}
-        provider={PROVIDER_DEFAULT}
-        initialRegion={{
-          latitude: (driverLocation.latitude + DEPOT.latitude) / 2,
-          longitude: (driverLocation.longitude + DEPOT.longitude) / 2,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02,
-        }}
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-        showsCompass={false}
+        styleURL={isDark ? StyleURL.Dark : StyleURL.Street}
+        logoEnabled={false}
+        attributionEnabled={false}
+        compassEnabled={false}
+        scaleBarEnabled={false}
+        pitchEnabled
+        rotateEnabled
       >
-        {/* Driver marker */}
-        <Marker coordinate={driverLocation} anchor={{ x: 0.5, y: 0.5 }}>
-          <View style={st.driverMarker}>
-            <Icon name="car" size={18} color={colors.white} />
-          </View>
-        </Marker>
+        <Camera
+          ref={cameraRef}
+          defaultSettings={{
+            centerCoordinate: centerCoord,
+            zoomLevel: 13,
+          }}
+        />
 
-        {/* Depot marker */}
-        <Marker
-          coordinate={{ latitude: DEPOT.latitude, longitude: DEPOT.longitude }}
+        {/* Live driver puck */}
+        {!locDenied && (
+          <UserLocation
+            visible
+            showsUserHeadingIndicator
+            androidRenderMode="gps"
+          />
+        )}
+
+        {/* Route polyline — blue, double-layered for outline */}
+        {routeFeature && (
+          <ShapeSource id="depotRouteSource" shape={routeFeature as any}>
+            <LineLayer
+              id="depotRouteOutline"
+              style={{
+                lineColor: "#1E40AF",
+                lineWidth: 9,
+                lineCap: "round",
+                lineJoin: "round",
+                lineOpacity: 0.9,
+              }}
+            />
+            <LineLayer
+              id="depotRouteLine"
+              style={{
+                lineColor: "#3B82F6",
+                lineWidth: 6,
+                lineCap: "round",
+                lineJoin: "round",
+              }}
+            />
+          </ShapeSource>
+        )}
+
+        {/* Depot pin */}
+        <PointAnnotation
+          id="depot"
+          coordinate={[DEPOT.longitude, DEPOT.latitude]}
           anchor={{ x: 0.5, y: 1 }}
         >
           <View style={st.depotMarkerWrap}>
-            <LinearGradient colors={[colors.status.info, "#2563EB"]} style={st.depotMarkerPin}>
+            <LinearGradient
+              colors={[colors.status.info, "#2563EB"]}
+              style={st.depotMarkerPin}
+            >
               <Icon name="business" size={16} color={colors.white} />
             </LinearGradient>
             <View style={st.depotMarkerArrow} />
           </View>
-        </Marker>
-
-        {/* Route polyline */}
-        <Polyline
-          coordinates={ROUTE_TO_DEPOT}
-          strokeColor={colors.status.info}
-          strokeWidth={5}
-          lineCap="round"
-          lineJoin="round"
-        />
+        </PointAnnotation>
       </MapView>
 
-      {/* Top bar: Back + ETA */}
+      {/* Top bar: Back + ETA + Recenter */}
       <View style={[st.topBar, { top: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <View
@@ -235,10 +376,10 @@ export default function DriverDepotPickup() {
           ]}
         >
           <Icon name="time-outline" size={16} color={colors.status.info} />
-          <Text style={[st.etaText, { color: colors.text.primary }]}>{eta}</Text>
+          <Text style={[st.etaText, { color: colors.text.primary }]}>{etaText}</Text>
           <View style={[st.etaDivider, { backgroundColor: colors.gold.border }]} />
           <Icon name="navigate-outline" size={16} color={colors.status.info} />
-          <Text style={[st.etaText, { color: colors.text.primary }]}>{remainingDistance}</Text>
+          <Text style={[st.etaText, { color: colors.text.primary }]}>{remainingDistText}</Text>
         </View>
 
         <TouchableOpacity onPress={handleRecenter}>
@@ -256,8 +397,38 @@ export default function DriverDepotPickup() {
         </TouchableOpacity>
       </View>
 
-      {/* Direction Card (shown when navigating) */}
-      {navigating && !arrivedAtDepot && (
+      {/* Permission warning */}
+      {locDenied && (
+        <View
+          style={[
+            st.warningBanner,
+            { top: insets.top + 66, backgroundColor: "#F59E0B" },
+          ]}
+        >
+          <Icon name="warning-outline" size={18} color="#000" />
+          <Text style={st.warningText}>
+            Location access denied — enable it in Settings to navigate to the depot.
+          </Text>
+        </View>
+      )}
+
+      {/* Routing error banner */}
+      {routeError && !locDenied && (
+        <View
+          style={[
+            st.warningBanner,
+            { top: insets.top + 66, backgroundColor: "#EF4444" },
+          ]}
+        >
+          <Icon name="alert-circle-outline" size={18} color="#FFF" />
+          <Text style={[st.warningText, { color: "#FFF" }]}>
+            Routing unavailable — {routeError}
+          </Text>
+        </View>
+      )}
+
+      {/* Turn-by-turn card */}
+      {navigating && !arrived && currentStep && (
         <View
           style={[
             st.directionCard,
@@ -270,31 +441,37 @@ export default function DriverDepotPickup() {
         >
           <View style={[st.dirIcon, { backgroundColor: colors.status.info + "18" }]}>
             <Icon
-              name={DIRECTIONS[currentStep]?.icon || "arrow-up-outline"}
-              size={24}
+              name={maneuverIcon(currentStep.maneuverType, currentStep.maneuverModifier) as any}
+              size={26}
               color={colors.status.info}
             />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[st.dirInstruction, { color: colors.text.primary }]}>
-              {DIRECTIONS[currentStep]?.instruction}
+            <Text style={[st.dirInstruction, { color: colors.text.primary }]} numberOfLines={2}>
+              {currentStep.instruction}
             </Text>
-            {DIRECTIONS[currentStep]?.distance ? (
-              <Text style={{ color: colors.text.dim, fontSize: 13 }}>
-                {DIRECTIONS[currentStep].distance}
-              </Text>
-            ) : null}
+            <Text style={{ color: colors.text.dim, fontSize: 13 }}>
+              {formatDistance(currentStep.distance)}
+              {nextStep ? `  •  then ${nextStep.instruction.split(" ").slice(0, 4).join(" ")}…` : ""}
+            </Text>
           </View>
-          <TouchableOpacity
-            onPress={handleNextDirection}
-            style={[st.nextStepBtn, { backgroundColor: colors.status.info }]}
-          >
-            <Icon name="chevron-forward" size={20} color={colors.white} />
-          </TouchableOpacity>
         </View>
       )}
 
-      {/* Bottom Card */}
+      {/* Arrived banner */}
+      {arrived && (
+        <View
+          style={[
+            st.arrivedBanner,
+            { top: insets.top + 66, backgroundColor: "rgba(16,185,129,0.95)" },
+          ]}
+        >
+          <Icon name="checkmark-circle" size={22} color={colors.white} />
+          <Text style={st.arrivedText}>You've arrived at the depot</Text>
+        </View>
+      )}
+
+      {/* Bottom card */}
       <View
         style={[
           st.bottomCard,
@@ -318,7 +495,7 @@ export default function DriverDepotPickup() {
               {DEPOT.address}
             </Text>
           </View>
-          {delivery && (
+          {delivery?.orderNumber && (
             <View style={[st.orderBadge, { backgroundColor: colors.gold.primary + "18" }]}>
               <Text style={{ color: colors.gold.primary, fontSize: 12, fontWeight: "800" }}>
                 #{delivery.orderNumber}
@@ -356,38 +533,42 @@ export default function DriverDepotPickup() {
           </Text>
         </View>
 
-        {/* Action Button */}
-        {!navigating && !arrivedAtDepot && (
-          <TouchableOpacity onPress={handleStartNavigation} activeOpacity={0.85}>
+        {/* Primary action */}
+        {!navigating && !arrived && (
+          <TouchableOpacity onPress={handleStartNavigation} activeOpacity={0.85} disabled={!driverLocation}>
+            <LinearGradient
+              colors={
+                driverLocation
+                  ? [colors.status.info, "#2563EB"]
+                  : ["#9CA3AF", "#6B7280"]
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={st.primaryBtn}
+            >
+              <Icon name="navigate" size={22} color={colors.white} />
+              <Text style={st.primaryBtnText}>
+                {driverLocation ? "Start Navigation to Depot" : "Getting GPS fix…"}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
+        {navigating && !arrived && (
+          <TouchableOpacity onPress={handleRecenter} activeOpacity={0.85}>
             <LinearGradient
               colors={[colors.status.info, "#2563EB"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={st.primaryBtn}
             >
-              <Icon name="navigate" size={22} color={colors.white} />
-              <Text style={st.primaryBtnText}>Start Navigation to Depot</Text>
+              <Icon name="locate-outline" size={22} color={colors.white} />
+              <Text style={st.primaryBtnText}>Recenter on me</Text>
             </LinearGradient>
           </TouchableOpacity>
         )}
 
-        {navigating && !arrivedAtDepot && (
-          <TouchableOpacity onPress={handleNextDirection} activeOpacity={0.85}>
-            <Animated.View style={{ opacity: pulseAnim }}>
-              <LinearGradient
-                colors={["#8B5CF6", "#7C3AED"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={st.primaryBtn}
-              >
-                <Icon name="navigate-outline" size={22} color={colors.white} />
-                <Text style={st.primaryBtnText}>Navigating... Tap for next step</Text>
-              </LinearGradient>
-            </Animated.View>
-          </TouchableOpacity>
-        )}
-
-        {arrivedAtDepot && (
+        {arrived && (
           <TouchableOpacity onPress={handleArrivedConfirm} activeOpacity={0.85}>
             <LinearGradient
               colors={[colors.status.success, "#059669"]}
@@ -434,28 +615,9 @@ const st = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
   },
-  etaText: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  etaDivider: {
-    width: 1,
-    height: 18,
-    marginHorizontal: 4,
-  },
-  driverMarker: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#3B82F6",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 3,
-    borderColor: "#FFF",
-  },
-  depotMarkerWrap: {
-    alignItems: "center",
-  },
+  etaText: { fontSize: 14, fontWeight: "700" },
+  etaDivider: { width: 1, height: 18, marginHorizontal: 4 },
+  depotMarkerWrap: { alignItems: "center" },
   depotMarkerPin: {
     width: 34,
     height: 34,
@@ -495,18 +657,33 @@ const st = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  dirInstruction: {
-    fontSize: 15,
-    fontWeight: "700",
-    marginBottom: 2,
-  },
-  nextStepBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
+  dirInstruction: { fontSize: 15, fontWeight: "700", marginBottom: 2 },
+  warningBanner: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    flexDirection: "row",
     alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: borderRadius.md,
+    zIndex: 9,
   },
+  warningText: { color: "#000", fontSize: 13, fontWeight: "600", flex: 1 },
+  arrivedBanner: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: borderRadius.md,
+    zIndex: 9,
+  },
+  arrivedText: { color: "#FFF", fontSize: 14, fontWeight: "800", flex: 1 },
   bottomCard: {
     position: "absolute",
     bottom: 0,
@@ -531,11 +708,7 @@ const st = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  depotName: {
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 1,
-  },
+  depotName: { fontSize: 16, fontWeight: "800", marginBottom: 1 },
   orderBadge: {
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -550,11 +723,7 @@ const st = StyleSheet.create({
     gap: 14,
     marginBottom: 14,
   },
-  stripItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
+  stripItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   primaryBtn: {
     height: 56,
     borderRadius: borderRadius.full,
@@ -563,9 +732,5 @@ const st = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
-  primaryBtnText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "800",
-  },
+  primaryBtnText: { color: "#FFF", fontSize: 16, fontWeight: "800" },
 });
