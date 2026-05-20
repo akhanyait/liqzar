@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "788871166297",
+    "project_id": "liqzar",
+    "storage_bucket": "liqzar.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:788871166297:android:87250fc78a0d60bef1f448",
+        "android_client_info": {
+          "package_name": "co.za.liqzar.delivery"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBekc4n3V_lC-vNVgNFZFa59YTq-tkKKS0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

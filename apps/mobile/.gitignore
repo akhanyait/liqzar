@@ -1,0 +1,7 @@
+# Expo CNG / Prebuild — Android native project is regenerated on every
+# EAS Build via `expo prebuild`, driven by app.config.js + the @rnmapbox/maps
+# Expo config plugin. If this folder is uploaded, EAS skips prebuild and the
+# Mapbox Maven repo is never injected into android/build.gradle (build fails
+# with "Could not find com.mapbox.maps:android-ndk27").
+# iOS stays committed — see commit 7eba8d2.
+/android/

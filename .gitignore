@@ -38,6 +38,14 @@ gradle.properties.local
 .env.production
 .env.staging
 
+# Firebase / FCM — admin/service-account JSONs contain private keys and MUST
+# stay out of git. The Android `google-services.json` and iOS
+# `GoogleService-Info.plist` files contain only public-ish Firebase config
+# (project ID, sender ID, app API key) which is normal to ship inside an app,
+# so they SHOULD be committed for EAS Build to find them.
+**/liqzar-firebase-adminsdk-*.json
+**/*-firebase-adminsdk-*.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
