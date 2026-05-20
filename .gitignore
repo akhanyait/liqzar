@@ -46,6 +46,15 @@ gradle.properties.local
 **/liqzar-firebase-adminsdk-*.json
 **/*-firebase-adminsdk-*.json
 
+# Google Play service-account JSON keys — used by `eas submit -p android`
+# to upload .aab to Play Console. Contain a GCP service-account private key
+# with Play Developer API access. The canonical location is
+# ~/.googleplay/liqzar-play-service-account.json (outside the repo, perms 700);
+# these patterns are a defensive ignore in case one is ever dropped in-tree.
+**/*play-service-account*.json
+**/google-play-*.json
+**/liqzar-play-*.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

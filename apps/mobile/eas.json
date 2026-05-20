@@ -42,6 +42,12 @@
         "ascApiKeyPath": "/Users/gilbertmakinana/.appstoreconnect/AuthKey_T7NC4C3PR9.p8",
         "ascApiKeyId": "T7NC4C3PR9",
         "ascApiKeyIssuerId": "6cd0a3b0-4d28-4b36-b847-d23ef893570b"
+      },
+      "android": {
+        "serviceAccountKeyPath": "/Users/gilbertmakinana/.googleplay/liqzar-play-service-account.json",
+        "track": "internal",
+        "releaseStatus": "draft",
+        "changesNotSentForReview": false
       }
     }
   }
