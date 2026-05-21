@@ -1,7 +1,13 @@
-# Expo CNG / Prebuild — Android native project is regenerated on every
-# EAS Build via `expo prebuild`, driven by app.config.js + the @rnmapbox/maps
-# Expo config plugin. If this folder is uploaded, EAS skips prebuild and the
-# Mapbox Maven repo is never injected into android/build.gradle (build fails
-# with "Could not find com.mapbox.maps:android-ndk27").
-# iOS stays committed — see commit 7eba8d2.
+# Expo CNG / Prebuild — both native folders are regenerated on every EAS
+# Build via `expo prebuild`, driven by app.config.js + Expo config plugins.
+# Committing them causes EAS to SKIP prebuild and ship a stale native shell
+# that doesn't know about newly-installed modules. Symptom we hit:
+#   * Android (v19 cloud build): missing @rnmapbox/maps Maven repo →
+#     "Could not find com.mapbox.maps:android-ndk27"
+#   * iOS (v1.0.1 build 21): @rnmapbox/maps native module not in Podfile,
+#     so `Mapbox.setAccessToken` is undefined → "undefined is not a function"
+#     ErrorBoundary on app launch.
+# Custom native plist values + permissions all flow through app.config.js
+# (ios.infoPlist, android.permissions, plugins), so nothing is lost.
 /android/
+/ios/
