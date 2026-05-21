@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "../../components/Icon";
+import BrandMark from "../../components/BrandMark";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useOrders } from "../../contexts/OrderContext";
 import { STATUS_DISPLAY, OrderStatus, orderWorkflow } from "../../services/OrderWorkflowEngine";
@@ -323,9 +324,12 @@ export default function AdminOrderDetail() {
           >
             <Icon name="chevron-back" size={20} color={colors.text.primary} />
           </TouchableOpacity>
-          <Text style={[st.headerTitle, { color: colors.text.primary }]}>
-            Order #{order.order_number}
-          </Text>
+          <View style={{ alignItems: "center" }}>
+            <BrandMark size="xs" />
+            <Text style={[st.headerTitle, { color: colors.text.primary }]}>
+              Order #{order.order_number}
+            </Text>
+          </View>
           <View style={{ width: 36 }} />
         </View>
       </LinearGradient>

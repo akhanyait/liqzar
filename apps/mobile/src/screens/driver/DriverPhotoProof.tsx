@@ -24,6 +24,7 @@ try {
   // Native module not available in this build
 }
 import Icon from "../../components/Icon";
+import BrandMark from "../../components/BrandMark";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -169,9 +170,12 @@ export default function DriverPhotoProof() {
           >
             <Icon name="arrow-back" size={22} color={colors.text.primary} />
           </TouchableOpacity>
-          <Text style={[st.headerTitle, { color: colors.text.primary }]}>
-            Proof of Delivery
-          </Text>
+          <View style={{ alignItems: "center" }}>
+            <BrandMark size="xs" />
+            <Text style={[st.headerTitle, { color: colors.text.primary }]}>
+              Proof of Delivery
+            </Text>
+          </View>
           <View style={{ width: 36 }} />
         </View>
       </LinearGradient>

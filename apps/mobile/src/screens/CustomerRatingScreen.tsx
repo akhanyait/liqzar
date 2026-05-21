@@ -14,6 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Icon } from "../components/Icon";
+import BrandMark from "../components/BrandMark";
 import { useTheme } from "../contexts/ThemeContext";
 import { spacing, borderRadius } from "../theme";
 import { supabase } from "../lib/supabase";
@@ -155,9 +156,12 @@ export default function CustomerRatingScreen() {
           >
             <Icon name="arrow-back" size={22} color={colors.text.primary} />
           </TouchableOpacity>
-          <Text style={[st.headerTitle, { color: colors.text.primary }]}>
-            Rate Your Order
-          </Text>
+          <View style={{ alignItems: "center" }}>
+            <BrandMark size="xs" />
+            <Text style={[st.headerTitle, { color: colors.text.primary }]}>
+              Rate Your Order
+            </Text>
+          </View>
           <View style={{ width: 36 }} />
         </View>
       </LinearGradient>

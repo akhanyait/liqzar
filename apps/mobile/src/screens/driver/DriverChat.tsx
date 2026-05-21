@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Icon } from "../../components/Icon";
+import BrandMark from "../../components/BrandMark";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { supabase } from "../../lib/supabase";
@@ -233,9 +234,12 @@ export default function DriverChat() {
             >
               <Icon name="arrow-back" size={22} color={colors.text.primary} />
             </TouchableOpacity>
-            <Text style={[st.headerTitle, { color: colors.text.primary }]}>
-              Messages
-            </Text>
+            <View style={{ alignItems: "center" }}>
+              <BrandMark size="xs" />
+              <Text style={[st.headerTitle, { color: colors.text.primary }]}>
+                Messages
+              </Text>
+            </View>
             <View style={st.backBtn}>
               {totalUnread > 0 && (
                 <View style={st.unreadBadge}>

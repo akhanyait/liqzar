@@ -13,6 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { spacing, borderRadius, typography } from "../theme";
 import { Icon } from "../components/Icon";
+import BrandMark from "../components/BrandMark";
 import { useCart } from "../contexts/CartContext";
 import { useTheme } from "../contexts/ThemeContext";
 
@@ -232,6 +233,7 @@ export default function CartScreen() {
       >
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
+            <BrandMark size="xs" />
             <View style={styles.headerTitleRow}>
               <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
                 Your Cart

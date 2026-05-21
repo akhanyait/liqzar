@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Icon from "../components/Icon";
+import BrandMark from "../components/BrandMark";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../contexts/ThemeContext";
 import { spacing, borderRadius, typography, opacity } from "../theme";
@@ -212,9 +213,12 @@ export default function ReferralScreen() {
           >
             <Icon name="arrow-back" size={22} color={textPrimary} />
           </TouchableOpacity>
-          <Text style={[st.headerTitle, { color: textPrimary }]}>
-            Refer & Earn
-          </Text>
+          <View style={{ alignItems: "center" }}>
+            <BrandMark size="xs" />
+            <Text style={[st.headerTitle, { color: textPrimary }]}>
+              Refer & Earn
+            </Text>
+          </View>
           <View style={{ width: 36 }} />
         </View>
       </LinearGradient>

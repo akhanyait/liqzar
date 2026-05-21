@@ -17,6 +17,9 @@ import {
   OrderNotification,
 } from "../services/OrderWorkflowEngine";
 
+import { computeStaleReason, type StaleReason } from "../utils/orderHealth";
+export type { StaleReason };
+
 interface ActiveOrder {
   id: string;
   order_number: string;
@@ -26,6 +29,8 @@ interface ActiveOrder {
   updated_at?: string;
   user_id: string;
   delivery_address?: any;
+  delivery_method?: string;
+  scheduled_date?: string | null;
   payment_method?: string;
   payment_status?: string;
   driver_name?: string;
@@ -34,6 +39,9 @@ interface ActiveOrder {
   // and the customer's full_name resolved from profiles via user_id.
   order_items?: Array<{ id: string; quantity?: number; name?: string }>;
   customer_name?: string;
+  // Derived health flag — null means healthy. Computed client-side so every
+  // screen reads the same value without a separate query against the view.
+  stale_reason?: StaleReason;
 }
 
 interface OrderContextType {
@@ -177,6 +185,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
             o.delivery_address?.name ||
             nameByUserId.get(o.user_id) ||
             "",
+          stale_reason: computeStaleReason(o),
         }));
         setActiveOrders(enriched as ActiveOrder[]);
       }

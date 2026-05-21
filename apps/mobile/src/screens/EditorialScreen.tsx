@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Icon } from "../components/Icon";
+import BrandMark from "../components/BrandMark";
 import { useTheme } from "../contexts/ThemeContext";
 import { spacing, borderRadius, typography } from "../theme";
 import { EDITORIAL_ARTICLES } from "../data/editorial";
@@ -53,6 +54,7 @@ const EditorialScreen = () => {
           </View>
         </View>
 
+        <BrandMark size="xs" />
         <Text style={[styles.h1, { color: colors.text.primary }]}>
           The LIQZAR Editorial
         </Text>

@@ -16,6 +16,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { Icon } from "../components/Icon";
+import BrandMark from "../components/BrandMark";
 import { useCart } from "../contexts/CartContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { supabase } from "../lib/supabase";
@@ -257,7 +258,10 @@ export default function CatalogScreen() {
         style={styles.headerGradient}
       >
         <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Catalogue</Text>
+          <View>
+            <BrandMark size="xs" />
+            <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Catalogue</Text>
+          </View>
           <TouchableOpacity
             style={[styles.filterButton, { backgroundColor: colors.background.tertiary, borderColor: colors.gold.border }]}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}

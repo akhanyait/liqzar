@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Icon } from "../components/Icon";
+import BrandMark from "../components/BrandMark";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -275,7 +276,10 @@ export default function NotificationsScreen() {
         >
           <Icon name="arrow-back" size={22} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Notifications</Text>
+        <View style={{ alignItems: "center" }}>
+          <BrandMark size="xs" />
+          <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Notifications</Text>
+        </View>
         {unreadCount > 0 ? (
           <View style={[styles.unreadBadge, { backgroundColor: colors.gold.primary }]}>
             <Text style={[styles.unreadBadgeText, { color: colors.text.inverse }]}>{unreadCount}</Text>

@@ -46,7 +46,7 @@
       "android": {
         "serviceAccountKeyPath": "/Users/gilbertmakinana/.googleplay/liqzar-play-service-account.json",
         "track": "internal",
-        "releaseStatus": "draft",
+        "releaseStatus": "completed",
         "changesNotSentForReview": false
       }
     }

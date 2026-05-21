@@ -13,6 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing, borderRadius, typography } from "../theme";
 import { Icon } from "../components/Icon";
+import BrandMark from "../components/BrandMark";
 import { useTheme } from "../contexts/ThemeContext";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../lib/supabase";
@@ -245,9 +246,12 @@ export default function AdminAuditLogScreen() {
         >
           <Icon name="arrow-back" size={22} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
-          Audit Log
-        </Text>
+        <View style={{ alignItems: "center" }}>
+          <BrandMark size="xs" />
+          <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
+            Audit Log
+          </Text>
+        </View>
         <View style={{ width: 32 }}>
           <Text style={[styles.countBadge, { color: colors.gold.primary }]}>
             {logs.length}

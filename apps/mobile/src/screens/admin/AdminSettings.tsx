@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Icon } from "../../components/Icon";
+import BrandMark from "../../components/BrandMark";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { spacing, borderRadius } from "../../theme";
@@ -459,9 +460,12 @@ export default function AdminSettings() {
             >
               <Icon name="arrow-back" size={22} color={colors.text.primary} />
             </TouchableOpacity>
-            <Text style={[st.headerTitle, { color: colors.text.primary }]}>
-              Settings
-            </Text>
+            <View style={{ alignItems: "center" }}>
+              <BrandMark size="xs" />
+              <Text style={[st.headerTitle, { color: colors.text.primary }]}>
+                Settings
+              </Text>
+            </View>
             <View style={{ width: 36 }} />
           </View>
         </LinearGradient>
@@ -493,9 +497,12 @@ export default function AdminSettings() {
           >
             <Icon name="arrow-back" size={22} color={colors.text.primary} />
           </TouchableOpacity>
-          <Text style={[st.headerTitle, { color: colors.text.primary }]}>
-            Settings
-          </Text>
+          <View style={{ alignItems: "center" }}>
+            <BrandMark size="xs" />
+            <Text style={[st.headerTitle, { color: colors.text.primary }]}>
+              Settings
+            </Text>
+          </View>
           <View style={{ width: 36 }} />
         </View>
       </LinearGradient>

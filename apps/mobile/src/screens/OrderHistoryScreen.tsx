@@ -18,6 +18,8 @@ import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { ordersApi } from "../services/api";
 import { useNavigation } from "@react-navigation/native";
+import { computeStaleReason } from "../utils/orderHealth";
+import BrandMark from "../components/BrandMark";
 
 interface OrderData {
   id: string;
@@ -318,25 +320,72 @@ export default function OrderHistoryScreen() {
               </View>
             </View>
 
-            <View
-              style={[
-                styles.statusPill,
-                {
-                  backgroundColor: statusConfig.color + "18",
-                  borderColor: statusConfig.color + "30",
-                },
-              ]}
-            >
-              <Icon
-                name={statusConfig.icon}
-                size={13}
-                color={statusConfig.color}
-              />
-              <Text
-                style={[styles.statusPillText, { color: statusConfig.color }]}
+            <View style={{ alignItems: "flex-end", gap: 4 }}>
+              <View
+                style={[
+                  styles.statusPill,
+                  {
+                    backgroundColor: statusConfig.color + "18",
+                    borderColor: statusConfig.color + "30",
+                  },
+                ]}
               >
-                {statusConfig.label}
-              </Text>
+                <Icon
+                  name={statusConfig.icon}
+                  size={13}
+                  color={statusConfig.color}
+                />
+                <Text
+                  style={[styles.statusPillText, { color: statusConfig.color }]}
+                >
+                  {statusConfig.label}
+                </Text>
+              </View>
+              {(() => {
+                // Tiny attention chip when this order is in a bad health
+                // state. Same source-of-truth as the banner on OrderDetail.
+                const reason = computeStaleReason(item);
+                if (!reason) return null;
+                const tone =
+                  reason === "past_due"
+                    ? colors.status.error
+                    : reason === "payment_abandoned"
+                      ? colors.status.warning
+                      : colors.status.info;
+                const label =
+                  reason === "past_due"
+                    ? "DELIVERY MISSED"
+                    : reason === "payment_abandoned"
+                      ? "PAYMENT NEEDED"
+                      : "STUCK";
+                return (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 3,
+                      backgroundColor: tone + "1A",
+                      borderColor: tone + "40",
+                      borderWidth: StyleSheet.hairlineWidth,
+                      paddingHorizontal: 6,
+                      paddingVertical: 2,
+                      borderRadius: 6,
+                    }}
+                  >
+                    <Icon name="alert-circle" size={9} color={tone} />
+                    <Text
+                      style={{
+                        color: tone,
+                        fontSize: 9,
+                        fontWeight: "800",
+                        letterSpacing: 0.8,
+                      }}
+                    >
+                      {label}
+                    </Text>
+                  </View>
+                );
+              })()}
             </View>
           </View>
 
@@ -579,6 +628,7 @@ export default function OrderHistoryScreen() {
       >
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
+            <BrandMark size="xs" />
             <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
               My Orders
             </Text>

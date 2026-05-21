@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Icon from "../../components/Icon";
+import BrandMark from "../../components/BrandMark";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../../contexts/ThemeContext";
 import { spacing, borderRadius } from "../../theme";
@@ -364,9 +365,12 @@ export default function AdminPromoManagement() {
             >
               <Icon name="chevron-back" size={20} color={colors.text.primary} />
             </TouchableOpacity>
-            <Text style={[st.headerTitle, { color: colors.text.primary }]}>
-              Promotions & Coupons
-            </Text>
+            <View style={{ alignItems: "center" }}>
+              <BrandMark size="xs" />
+              <Text style={[st.headerTitle, { color: colors.text.primary }]}>
+                Promotions & Coupons
+              </Text>
+            </View>
             <View style={{ width: 38 }} />
           </View>
         </LinearGradient>
@@ -405,9 +409,12 @@ export default function AdminPromoManagement() {
           >
             <Icon name="chevron-back" size={20} color={colors.text.primary} />
           </TouchableOpacity>
-          <Text style={[st.headerTitle, { color: colors.text.primary }]}>
-            Promotions & Coupons
-          </Text>
+          <View style={{ alignItems: "center" }}>
+            <BrandMark size="xs" />
+            <Text style={[st.headerTitle, { color: colors.text.primary }]}>
+              Promotions & Coupons
+            </Text>
+          </View>
           <TouchableOpacity
             onPress={() => {
               resetForm();

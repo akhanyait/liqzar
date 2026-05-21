@@ -14,6 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Icon } from "../../components/Icon";
+import BrandMark from "../../components/BrandMark";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useOrders } from "../../contexts/OrderContext";
 import { spacing, borderRadius } from "../../theme";
@@ -91,9 +92,12 @@ export default function DriverDeliveryDetail() {
           >
             <Icon name="arrow-back" size={22} color={colors.text.primary} />
           </TouchableOpacity>
-          <Text style={[st.headerTitle, { color: colors.text.primary }]}>
-            #{delivery?.orderNumber || "Order"}
-          </Text>
+          <View style={{ alignItems: "center" }}>
+            <BrandMark size="xs" />
+            <Text style={[st.headerTitle, { color: colors.text.primary }]}>
+              #{delivery?.orderNumber || "Order"}
+            </Text>
+          </View>
           <View style={{ width: 36 }} />
         </View>
       </LinearGradient>

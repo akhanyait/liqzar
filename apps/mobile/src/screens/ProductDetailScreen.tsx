@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { spacing, borderRadius, typography } from "../theme";
 import { Icon } from "../components/Icon";
+import BrandMark from "../components/BrandMark";
 import { useCart } from "../contexts/CartContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { productsApi } from "../services/api";
@@ -479,6 +480,7 @@ export default function ProductDetailScreen() {
           </View>
 
           {/* Product Name - 26px bold */}
+          <BrandMark size="xs" />
           <Text style={[styles.productName, { color: colors.text.primary }]}>
             {product.name}
           </Text>

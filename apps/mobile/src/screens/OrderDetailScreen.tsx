@@ -14,8 +14,10 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { spacing, borderRadius, typography } from "../theme";
 import { Icon } from "../components/Icon";
+import BrandMark from "../components/BrandMark";
 import { useTheme } from "../contexts/ThemeContext";
 import { useOrders } from "../contexts/OrderContext";
+import { computeStaleReason, staleReasonCopy } from "../utils/orderHealth";
 import { STATUS_DISPLAY, OrderStatus } from "../services/OrderWorkflowEngine";
 import { ordersApi } from "../services/api";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -183,6 +185,7 @@ export default function OrderDetailScreen() {
         style={[styles.headerGradient, shadows.goldSubtle]}
       >
         <View style={styles.headerContent}>
+          <BrandMark size="xs" />
           <Text style={[styles.headerLabel, { color: colors.text.muted }]}>ORDER</Text>
           <Text style={[styles.orderNumber, { color: colors.gold.primary }]}>
             #{order.order_number}
@@ -317,16 +320,116 @@ export default function OrderDetailScreen() {
       )}
 
       {/* ════════ AWAITING PAYMENT BANNER ════════ */}
-      {(order.payment_status === "awaiting_payment" ||
-        order.payment_status === "pending" ||
-        order.payment_status === "failed") &&
-        order.payment_method !== "cash_on_delivery" && (
+      {(() => {
+        // Stale-order banner — only renders when the order is in a "bad"
+        // state per utils/orderHealth.computeStaleReason. Replaces the
+        // generic "Payment required" card with contextual copy + actions
+        // tailored to WHY the order is stale (payment, stuck, past_due).
+        const reason = computeStaleReason(order);
+        const copy = staleReasonCopy(reason);
+        if (!copy) {
+          // Fallback: original payment-required card for cases the new rules
+          // don't yet cover (e.g. payment 'failed' on an otherwise fresh
+          // order, where stale_reason is null).
+          if (
+            (order.payment_status === "awaiting_payment" ||
+              order.payment_status === "pending" ||
+              order.payment_status === "failed") &&
+            order.payment_method !== "cash_on_delivery"
+          ) {
+            return (
+              <View
+                style={[
+                  styles.section,
+                  {
+                    backgroundColor: colors.status.warning + "12",
+                    borderColor: colors.status.warning + "40",
+                    borderWidth: 1,
+                    borderRadius: borderRadius.lg,
+                    padding: spacing.lg,
+                    marginHorizontal: spacing.lg,
+                    marginTop: spacing.md,
+                  },
+                ]}
+              >
+                <View style={styles.sectionHeaderRow}>
+                  <Icon name="card-outline" size={20} color={colors.status.warning} />
+                  <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>
+                    Payment required
+                  </Text>
+                </View>
+                <Text
+                  style={{
+                    ...typography.body,
+                    color: colors.text.muted,
+                    marginTop: spacing.xs,
+                    marginBottom: spacing.md,
+                  }}
+                >
+                  Your order is awaiting payment. Complete it now to proceed.
+                </Text>
+                <PayNowButton
+                  orderId={order.id}
+                  amount={Number(order.total)}
+                  paymentMethod={order.payment_method}
+                  onPaid={() => {
+                    if (typeof (route as any).params?.refetch === "function") {
+                      (route as any).params.refetch();
+                    }
+                  }}
+                />
+              </View>
+            );
+          }
+          return null;
+        }
+
+        const toneColor =
+          copy.tone === "danger"
+            ? colors.status.error
+            : copy.tone === "warning"
+              ? colors.status.warning
+              : colors.status.info;
+        const toneIcon =
+          copy.tone === "danger"
+            ? "alert-circle"
+            : copy.tone === "warning"
+              ? "card-outline"
+              : "information-circle";
+
+        const handleIntent = async (
+          intent: "pay" | "cancel" | "support" | "refund" | "reschedule",
+        ) => {
+          switch (intent) {
+            case "pay":
+              // PayNowButton is rendered below for the pay intent — nothing
+              // here; the user taps it directly.
+              return;
+            case "cancel":
+              await cancelOrder(order.id);
+              if (typeof (route as any).params?.refetch === "function") {
+                (route as any).params.refetch();
+              }
+              return;
+            case "support":
+              (navigation as any).navigate("Support", { orderId: order.id });
+              return;
+            case "refund":
+              (navigation as any).navigate("RequestRefund", { orderId: order.id });
+              return;
+            case "reschedule":
+              (navigation as any).navigate("RescheduleOrder", { orderId: order.id });
+              return;
+          }
+        };
+
+        return (
           <View
             style={[
               styles.section,
               {
-                backgroundColor: colors.status.warning + "12",
-                borderColor: colors.status.warning + "40",
+                backgroundColor: toneColor + "12",
+                borderColor: toneColor + "40",
                 borderWidth: 1,
                 borderRadius: borderRadius.lg,
                 padding: spacing.lg,
@@ -336,9 +439,9 @@ export default function OrderDetailScreen() {
             ]}
           >
             <View style={styles.sectionHeaderRow}>
-              <Icon name="card-outline" size={20} color={colors.status.warning} />
+              <Icon name={toneIcon as any} size={20} color={toneColor} />
               <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>
-                Payment required
+                {copy.title}
               </Text>
             </View>
             <Text
@@ -349,20 +452,65 @@ export default function OrderDetailScreen() {
                 marginBottom: spacing.md,
               }}
             >
-              Your order is awaiting payment. Complete it now to proceed.
+              {copy.body}
             </Text>
-            <PayNowButton
-              orderId={order.id}
-              amount={Number(order.total)}
-              paymentMethod={order.payment_method}
-              onPaid={() => {
-                if (typeof (route as any).params?.refetch === "function") {
-                  (route as any).params.refetch();
-                }
-              }}
-            />
+
+            {/* Pay intent is special: use the existing PayNowButton which
+                handles checkout integration. Other intents are simple nav
+                or RPC calls. */}
+            {copy.primaryAction?.intent === "pay" ? (
+              <PayNowButton
+                orderId={order.id}
+                amount={Number(order.total)}
+                paymentMethod={order.payment_method}
+                onPaid={() => {
+                  if (typeof (route as any).params?.refetch === "function") {
+                    (route as any).params.refetch();
+                  }
+                }}
+              />
+            ) : copy.primaryAction ? (
+              <TouchableOpacity
+                onPress={() => handleIntent(copy.primaryAction!.intent)}
+                style={{
+                  backgroundColor: toneColor,
+                  paddingVertical: 12,
+                  paddingHorizontal: 18,
+                  borderRadius: borderRadius.md,
+                  alignItems: "center",
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={{ color: "#FFF", fontWeight: "800", fontSize: 14 }}>
+                  {copy.primaryAction.label}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {copy.secondaryAction && (
+              <TouchableOpacity
+                onPress={() => handleIntent(copy.secondaryAction!.intent)}
+                style={{
+                  marginTop: spacing.sm,
+                  paddingVertical: 10,
+                  paddingHorizontal: 18,
+                  borderRadius: borderRadius.md,
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: toneColor + "60",
+                }}
+                activeOpacity={0.85}
+              >
+                <Text
+                  style={{ color: toneColor, fontWeight: "700", fontSize: 13 }}
+                >
+                  {copy.secondaryAction.label}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
-        )}
+        );
+      })()}
 
       {/* ════════ STATUS TIMELINE ════════ */}
       {!isCancelledOrRefunded && (

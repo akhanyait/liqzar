@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Icon } from "../components/Icon";
 import { supabase } from "../lib/supabase";
@@ -112,6 +113,7 @@ const darkMapStyle = [
 
 export default function OrderTrackingScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const route = useRoute<any>();
   const { orderId } = route.params;
   const { colors, gradients, shadows, isDark } = useTheme();
@@ -628,7 +630,12 @@ export default function OrderTrackingScreen() {
       >
         <LinearGradient
           colors={[colors.background.card, colors.background.primary]}
-          style={styles.bottomSheetGradient}
+          style={[
+            styles.bottomSheetGradient,
+            // Add the device's bottom safe area on top of the base padding so
+            // the Delivery PIN section never sits under the navigation bar.
+            { paddingBottom: insets.bottom + 20 },
+          ]}
         >
           {/* Handle Bar */}
           <View style={styles.handleBarWrap}>
@@ -1333,11 +1340,15 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderBottomWidth: 0,
-    maxHeight: height * 0.52,
+    // Was 0.52 — cropping the Delivery PIN section on phones with tall content
+    // (driver card + Share ETA + Chat + PIN). 0.68 gives the ScrollView enough
+    // room without the sheet ever filling the whole screen.
+    maxHeight: height * 0.68,
   },
   bottomSheetGradient: {
     paddingTop: spacing.sm,
-    paddingBottom: Platform.OS === "ios" ? 40 : spacing.lg,
+    // Base padding only — actual paddingBottom is applied inline at render
+    // time as `insets.bottom + 20` so the safe-area inset is honoured.
   },
   sheetContent: {
     paddingHorizontal: spacing.lg,

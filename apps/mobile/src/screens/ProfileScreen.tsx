@@ -15,6 +15,7 @@ import {
   typography,
 } from "../theme";
 import { Icon } from "../components/Icon";
+import BrandMark from "../components/BrandMark";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useNavigation } from "@react-navigation/native";
@@ -475,6 +476,7 @@ export default function ProfileScreen() {
             </LinearGradient>
           </View>
 
+          <BrandMark size="xs" />
           <Text style={styles.userName}>{displayName}</Text>
 
           {displayContact ? (

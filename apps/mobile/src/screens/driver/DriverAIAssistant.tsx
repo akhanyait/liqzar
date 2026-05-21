@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Icon } from "../../components/Icon";
+import BrandMark from "../../components/BrandMark";
 import { useTheme } from "../../contexts/ThemeContext";
 import { supabase } from "../../lib/supabase";
 import { spacing, borderRadius } from "../../theme";
@@ -248,6 +249,7 @@ export default function DriverAIAssistant() {
             <Icon name="arrow-back" size={22} color={colors.text.primary} />
           </TouchableOpacity>
           <View style={st.headerCenter}>
+            <BrandMark size="xs" />
             <View style={[st.aiDot, { backgroundColor: colors.status.success }]} />
             <Text style={[st.headerTitle, { color: colors.text.primary }]}>
               AI Copilot

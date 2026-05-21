@@ -13,6 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Icon } from "../../components/Icon";
+import BrandMark from "../../components/BrandMark";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { spacing, borderRadius } from "../../theme";
@@ -189,9 +190,12 @@ export default function DriverMenu() {
           >
             <Icon name="arrow-back" size={22} color={colors.text.primary} />
           </TouchableOpacity>
-          <Text style={[st.headerTitle, { color: colors.text.primary }]}>
-            Menu
-          </Text>
+          <View style={{ alignItems: "center" }}>
+            <BrandMark size="xs" />
+            <Text style={[st.headerTitle, { color: colors.text.primary }]}>
+              Menu
+            </Text>
+          </View>
           <TouchableOpacity onPress={toggleTheme} style={st.backBtn}>
             <Icon
               name={isDark ? "sunny-outline" : "moon-outline"}

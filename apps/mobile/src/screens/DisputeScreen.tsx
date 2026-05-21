@@ -16,6 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing, borderRadius, typography } from "../theme";
 import { Icon } from "../components/Icon";
+import BrandMark from "../components/BrandMark";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -291,9 +292,12 @@ export default function DisputeScreen() {
         >
           <Icon name="arrow-back" size={22} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
-          My Disputes
-        </Text>
+        <View style={{ alignItems: "center" }}>
+          <BrandMark size="xs" />
+          <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
+            My Disputes
+          </Text>
+        </View>
         <View style={{ width: 32 }} />
       </LinearGradient>
 
