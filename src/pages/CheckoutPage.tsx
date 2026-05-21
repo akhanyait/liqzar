@@ -679,6 +679,12 @@ const CheckoutPage = () => {
               ? "next-day"
               : "scheduled",
           address.coordinates,
+          // Pass through the user's selected schedule values — without these,
+          // scheduledDate is always undefined inside the validator and the
+          // "scheduled" branch errors with "Please select a delivery date"
+          // even when the user has clearly picked one.
+          selectedScheduleDate,
+          selectedScheduleSlot,
         );
         if (!validation.valid) {
           toast({ title: validation.message, variant: "destructive" });

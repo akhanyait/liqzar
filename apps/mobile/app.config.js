@@ -3,7 +3,7 @@ export default {
     name: "LIQZAR",
     slug: "liqzar",
     owner: "akhanya-it",
-    version: "1.0.0",
+    version: "1.0.1",
     scheme: "liqzar",
     orientation: "portrait",
     userInterfaceStyle: "dark",
@@ -38,6 +38,11 @@ export default {
       // com.liqzar.delivery was already claimed on a different Google Play
       // developer account; iOS keeps com.liqzar.delivery on Apple).
       package: "co.za.liqzar.delivery",
+      // Firebase config file — required for FCM push notification token
+      // registration on Android. Generated in Firebase Console for the
+      // 'liqzar' project (package name co.za.liqzar.delivery).
+      // Excluded from git via .gitignore; provisioned via EAS build env.
+      googleServicesFile: "./google-services.json",
       config: {
         googleMaps: {
           // Secret — set GOOGLE_MAPS_API_KEY in .env / EAS build secrets.
@@ -67,6 +72,15 @@ export default {
           fonts: [
             "./assets/fonts/Ionicons.ttf",
           ],
+        },
+      ],
+      [
+        "@rnmapbox/maps",
+        {
+          // Secret token (sk.*) used during BUILD only to download the Mapbox
+          // native SDK from their private registry. Must have downloads:read
+          // scope. Stored in EAS env as MAPBOX_DOWNLOAD_TOKEN.
+          RNMapboxMapsDownloadToken: process.env.MAPBOX_DOWNLOAD_TOKEN,
         },
       ],
       "expo-secure-store",
@@ -104,6 +118,9 @@ export default {
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlaWV3Y2t0eXp6ZXZpc3p1a3FqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MTc1OTQsImV4cCI6MjA5MTI5MzU5NH0.n5CmlkLXrF-qAtIPNLVurhjf9vWFawFt8T7NEb--qHs",
       apiBaseUrl: process.env.API_BASE_URL || "https://api.liqzar.co.za",
       googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
+      // Public Mapbox access token (pk.*) used at runtime to render maps and
+      // call the Directions API. Set in EAS env as MAPBOX_ACCESS_TOKEN.
+      mapboxAccessToken: process.env.MAPBOX_ACCESS_TOKEN,
       // E.164 without the "+". Override via LIQZAR_CONCIERGE_WHATSAPP.
       conciergeWhatsApp:
         process.env.LIQZAR_CONCIERGE_WHATSAPP || "27810001234",

@@ -12,9 +12,16 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Direct Google AI Studio (Generative Language API) — free tier covers
+    // typical catalogue imports (~1,500 req/day on gemini-2.5-flash). Set the
+    // key via: supabase secrets set GOOGLE_AI_API_KEY=<key>
+    // Fall back to LOVABLE_API_KEY for backward compat if someone preferred
+    // routing through Lovable's gateway.
+    const googleKey = Deno.env.get('GOOGLE_AI_API_KEY');
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!lovableApiKey) {
-      return new Response(JSON.stringify({ error: 'LOVABLE_API_KEY not configured' }), {
+    const useGoogle = !!googleKey;
+    if (!googleKey && !lovableApiKey) {
+      return new Response(JSON.stringify({ error: 'No AI key set — set GOOGLE_AI_API_KEY (preferred) or LOVABLE_API_KEY in EF secrets' }), {
         status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -75,20 +82,30 @@ ${product.alcohol_pct ? `ABV: ${product.alcohol_pct}` : ''}
 
 Format: Start with a brief description, then include "Tasting Notes:" followed by flavour descriptors. Keep it under 200 words.`;
 
-        const aiResponse = await fetch('https://ai-gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${lovableApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
-            messages: [
-              { role: 'user', content: prompt }
-            ],
-            max_tokens: 300,
-          }),
-        });
+        const aiResponse = useGoogle
+          ? await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${googleKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: prompt }] }],
+                  generationConfig: { maxOutputTokens: 300 },
+                }),
+              },
+            )
+          : await fetch('https://ai-gateway.lovable.dev/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${lovableApiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'google/gemini-2.5-flash',
+                messages: [{ role: 'user', content: prompt }],
+                max_tokens: 300,
+              }),
+            });
 
         if (!aiResponse.ok) {
           console.error(`AI API error for ${product.name}: ${aiResponse.status}`);
@@ -96,7 +113,10 @@ Format: Start with a brief description, then include "Tasting Notes:" followed b
         }
 
         const aiData = await aiResponse.json();
-        const description = aiData.choices?.[0]?.message?.content?.trim();
+        // Google returns candidates[].content.parts[].text; Lovable returns OpenAI shape.
+        const description = useGoogle
+          ? aiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+          : aiData.choices?.[0]?.message?.content?.trim();
 
         if (description) {
           await supabase.from('products').update({ description }).eq('id', product.id);

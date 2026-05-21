@@ -63,14 +63,17 @@
 
     --border: 40 22% 84%;
     --input: 40 20% 92%;
-    --ring: 40 85% 50%;
+    --ring: 46 65% 52%;
 
     --radius: 0.875rem;
 
-    /* Premium gold palette */
-    --gold: 40 85% 50%;
-    --gold-light: 42 70% 60%;
-    --gold-dark: 38 80% 42%;
+    /* Premium gold palette — LIQZAR brand gold #D4AF37 (HSL 46° 65% 52%).
+       Previous values (--gold: 40 85% 50%) rendered as a saturated orange
+       that clashed with the inline-styled brand elements (e.g. View All
+       pill in Header.tsx uses the literal #D4AF37 → #B8962E gradient). */
+    --gold: 46 65% 52%;
+    --gold-light: 48 70% 62%;
+    --gold-dark: 44 60% 45%;
     --champagne: 40 50% 70%;
     --champagne-light: 42 45% 82%;
     --champagne-cream: 40 30% 92%;
@@ -129,7 +132,7 @@
 
     --border: 222 14% 20%;
     --input: 222 14% 18%;
-    --ring: 40 85% 52%;
+    --ring: 46 65% 52%;
 
     --header-bg: 222 22% 7%;
     --header-fg: 40 20% 96%;
