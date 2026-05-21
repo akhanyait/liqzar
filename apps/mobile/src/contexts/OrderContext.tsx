@@ -30,6 +30,10 @@ interface ActiveOrder {
   payment_status?: string;
   driver_name?: string;
   eta_minutes?: number;
+  // Enriched by refreshOrders — joined order_items rows (use .length for count)
+  // and the customer's full_name resolved from profiles via user_id.
+  order_items?: Array<{ id: string; quantity?: number; name?: string }>;
+  customer_name?: string;
 }
 
 interface OrderContextType {
@@ -99,7 +103,11 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     try {
       let query = supabase
         .from("orders")
-        .select("*")
+        // Embed order_items so every screen can read .order_items.length without
+        // an N+1 follow-up query. RLS on order_items must allow the current role
+        // to read items for orders they can see (driver: assigned orders;
+        // customer: own orders; admin: all).
+        .select("*, order_items(id, quantity, product_name)")
         .order("created_at", { ascending: false })
         .limit(50);
 
@@ -138,7 +146,39 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
 
       const { data, error } = await query;
       if (!error && data) {
-        setActiveOrders(data as ActiveOrder[]);
+        // Enrich with customer names from profiles. The orders query already
+        // pulls order_items via the embedded resource (see .select above), so
+        // count is `o.order_items.length`. For customer name we need a second
+        // batched query because orders.user_id → auth.users (not profiles),
+        // and PostgREST can't auto-detect that relationship.
+        const uniqueUserIds = Array.from(
+          new Set(
+            (data as any[])
+              .map((o) => o.user_id)
+              .filter((id): id is string => !!id),
+          ),
+        );
+        const nameByUserId = new Map<string, string>();
+        if (uniqueUserIds.length > 0) {
+          const { data: profs } = await supabase
+            .from("profiles")
+            .select("id, full_name")
+            .in("id", uniqueUserIds);
+          if (profs) {
+            for (const p of profs as any[]) {
+              if (p.full_name) nameByUserId.set(p.id, p.full_name);
+            }
+          }
+        }
+        const enriched = (data as any[]).map((o) => ({
+          ...o,
+          customer_name:
+            o.delivery_address?.recipient_name ||
+            o.delivery_address?.name ||
+            nameByUserId.get(o.user_id) ||
+            "",
+        }));
+        setActiveOrders(enriched as ActiveOrder[]);
       }
     } catch (err) {
       console.log("[OrderCtx] Error loading orders:", err);

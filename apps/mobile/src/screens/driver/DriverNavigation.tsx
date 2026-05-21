@@ -6,16 +6,20 @@ import {
   TouchableOpacity,
   Alert,
   Linking,
+  Animated,
+  Easing,
 } from "react-native";
 import {
   MapView,
   Camera,
   ShapeSource,
   LineLayer,
-  PointAnnotation,
+  MarkerView,
   UserLocation,
   StyleURL,
 } from "@rnmapbox/maps";
+import { useAuth } from "../../contexts/AuthContext";
+import { supabase } from "../../lib/supabase";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -29,6 +33,7 @@ import {
   formatDistance,
   formatDuration,
   maneuverIcon,
+  friendlyDirectionsError,
   type DirectionsRoute,
   type DirectionsStep,
 } from "../../services/MapboxDirections";
@@ -54,15 +59,96 @@ function distanceMeters(
 // but avoids crashing the screen on legacy data).
 const FALLBACK_DEST = { latitude: -33.9249, longitude: 18.4241 };
 
+type VehicleType =
+  | "scooter"
+  | "car"
+  | "bakkie"
+  | "small_truck"
+  | "medium_truck"
+  | "large_truck";
+
+const vehicleIconName = (t: VehicleType): string => {
+  switch (t) {
+    case "scooter":
+      return "bicycle";
+    case "car":
+      return "car-sport";
+    case "bakkie":
+    case "small_truck":
+      return "car";
+    case "medium_truck":
+    case "large_truck":
+      return "bus";
+    default:
+      return "car-sport";
+  }
+};
+
 export default function DriverNavigation() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { colors, isDark } = useTheme();
   const { markEnRoute, updateOrderStatus, activeOrders } = useOrders();
+  const { user } = useAuth();
 
   const cameraRef = useRef<Camera>(null);
   const watchSub = useRef<Location.LocationSubscription | null>(null);
+
+  // Vehicle-aware driver puck (matches DepotPickup + RoutePlanModal).
+  const [vehicleType, setVehicleType] = useState<VehicleType>("car");
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data: prof } = await supabase
+        .from("driver_profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (cancelled || !prof?.id) return;
+      const { data: veh } = await supabase
+        .from("driver_vehicles")
+        .select("vehicle_type")
+        .eq("driver_id", prof.id)
+        .maybeSingle();
+      if (!cancelled && veh?.vehicle_type) {
+        setVehicleType(veh.vehicle_type as VehicleType);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1400,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulseAnim]);
+  const pulseScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 2.4],
+  });
+  const pulseOpacity = pulseAnim.interpolate({
+    inputRange: [0, 0.2, 1],
+    outputRange: [0, 0.5, 0],
+  });
 
   // ── Resolve payload — two shapes:
   //   1. RoutePlanModal: { destination: { latitude, longitude, label, address }, orderId }
@@ -271,7 +357,7 @@ export default function DriverNavigation() {
       } catch (e: any) {
         if (cancelled) return;
         console.warn("[DriverNavigation] directions error", e);
-        setRouteError(e?.message ?? "Routing failed");
+        setRouteError(friendlyDirectionsError(e));
       }
     })();
     return () => {
@@ -515,19 +601,48 @@ export default function DriverNavigation() {
           </ShapeSource>
         )}
 
-        {/* Destination pin */}
-        <PointAnnotation
-          id="dest"
+        {/* Customer destination pin — MarkerView for reliable Android render */}
+        <MarkerView
           coordinate={[destination.longitude, destination.latitude]}
           anchor={{ x: 0.5, y: 1 }}
         >
-          <View style={st.customerMarkerWrap}>
-            <LinearGradient colors={[colors.gold.primary, colors.gold.dark]} style={st.customerPin}>
+          <View style={st.customerMarkerWrap} pointerEvents="none">
+            <LinearGradient
+              colors={[colors.gold.primary, colors.gold.dark]}
+              style={st.customerPin}
+            >
               <Icon name="person" size={16} color={colors.white} />
             </LinearGradient>
             <View style={st.customerPinArrow} />
           </View>
-        </PointAnnotation>
+        </MarkerView>
+
+        {/* Vehicle-aware driver chip — same treatment as DepotPickup */}
+        {driverLocation && (
+          <MarkerView
+            coordinate={[driverLocation.longitude, driverLocation.latitude]}
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <View style={st.driverMarkerWrap} pointerEvents="none">
+              <Animated.View
+                style={[
+                  st.driverPulse,
+                  {
+                    transform: [{ scale: pulseScale }],
+                    opacity: pulseOpacity,
+                  },
+                ]}
+              />
+              <View style={st.driverVehicleChip}>
+                <Icon
+                  name={vehicleIconName(vehicleType) as any}
+                  size={16}
+                  color="#FFF"
+                />
+              </View>
+            </View>
+          </MarkerView>
+        )}
       </MapView>
 
       {/* Top bar */}
@@ -851,6 +966,34 @@ const st = StyleSheet.create({
   etaText: { fontSize: 14, fontWeight: "700" },
   etaDivider: { width: 1, height: 18, marginHorizontal: 4 },
   customerMarkerWrap: { alignItems: "center" },
+  driverMarkerWrap: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  driverPulse: {
+    position: "absolute",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#3B82F6",
+  },
+  driverVehicleChip: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#3B82F6",
+    borderWidth: 2.5,
+    borderColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#3B82F6",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+  },
   customerPin: {
     width: 34,
     height: 34,

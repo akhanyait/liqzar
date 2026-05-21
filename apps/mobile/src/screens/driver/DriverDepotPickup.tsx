@@ -5,20 +5,24 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  Animated,
+  Easing,
 } from "react-native";
 import {
   MapView,
   Camera,
   ShapeSource,
   LineLayer,
-  PointAnnotation,
+  MarkerView,
   UserLocation,
   StyleURL,
 } from "@rnmapbox/maps";
+import { useAuth } from "../../contexts/AuthContext";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import * as Location from "expo-location";
+import { supabase } from "../../lib/supabase";
 import { Icon } from "../../components/Icon";
 import { useTheme } from "../../contexts/ThemeContext";
 import { borderRadius } from "../../theme";
@@ -27,6 +31,7 @@ import {
   formatDistance,
   formatDuration,
   maneuverIcon,
+  friendlyDirectionsError,
   type DirectionsRoute,
   type DirectionsStep,
 } from "../../services/MapboxDirections";
@@ -58,16 +63,150 @@ const DEPOT = {
   longitude: 18.4184,
 };
 
+type VehicleType =
+  | "scooter"
+  | "car"
+  | "bakkie"
+  | "small_truck"
+  | "medium_truck"
+  | "large_truck";
+
+const vehicleIconName = (t: VehicleType): string => {
+  switch (t) {
+    case "scooter":
+      return "bicycle";
+    case "car":
+      return "car-sport";
+    case "bakkie":
+    case "small_truck":
+      return "car";
+    case "medium_truck":
+    case "large_truck":
+      return "bus";
+    default:
+      return "car-sport";
+  }
+};
+
 export default function DriverDepotPickup() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { colors, isDark } = useTheme();
+  const { user } = useAuth();
 
   const cameraRef = useRef<Camera>(null);
   const watchSub = useRef<Location.LocationSubscription | null>(null);
 
+  // Vehicle-aware driver puck (same pattern as RoutePlanModal).
+  const [vehicleType, setVehicleType] = useState<VehicleType>("car");
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data: prof } = await supabase
+        .from("driver_profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (cancelled || !prof?.id) return;
+      const { data: veh } = await supabase
+        .from("driver_vehicles")
+        .select("vehicle_type")
+        .eq("driver_id", prof.id)
+        .maybeSingle();
+      if (!cancelled && veh?.vehicle_type) {
+        setVehicleType(veh.vehicle_type as VehicleType);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // Soft pulse halo on the driver chip — same animation recipe used in
+  // RoutePlanModal so the two screens feel like one product.
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1400,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulseAnim]);
+  const pulseScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 2.4],
+  });
+  const pulseOpacity = pulseAnim.interpolate({
+    inputRange: [0, 0.2, 1],
+    outputRange: [0, 0.5, 0],
+  });
+
   const delivery = route.params?.delivery;
+  const orderIdParam: string | undefined = delivery?.orderId || delivery?.id;
+
+  // OrderContext fetches `select("*")` from orders only — no joined order_items
+  // or customer profile. So when the entry point only passes an orderId (which
+  // RoutePlanModal does), we have no item count and no customer name to show.
+  // One-shot fetch here fills both, with the route-param values as fallback.
+  const [hydrated, setHydrated] = useState<{
+    itemCount: number;
+    customerName: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!orderIdParam) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("delivery_address, order_items(id), user_id")
+        .eq("id", orderIdParam)
+        .maybeSingle();
+      if (cancelled || error || !data) return;
+      const addr: any = data.delivery_address ?? {};
+      // Prefer delivery_address.recipient_name (set by Google Places autocomplete
+      // in checkout). When missing, ALWAYS resolve via orders.user_id → profiles —
+      // don't treat route-param fallback strings like "Customer" as real data.
+      let customerName: string = addr.recipient_name || addr.name || "";
+      if (!customerName && data.user_id) {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", data.user_id)
+          .maybeSingle();
+        if (!cancelled && prof?.full_name) customerName = prof.full_name;
+      }
+      if (!cancelled) {
+        setHydrated({
+          itemCount: data.order_items?.length ?? 0,
+          // Final display-time fallback only.
+          customerName: customerName || "Customer",
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orderIdParam, delivery?.customerName]);
+
+  // Display values — prefer freshly fetched, then route-param, then sensible default.
+  const displayItemCount = hydrated?.itemCount ?? delivery?.items ?? 0;
+  const displayCustomerName =
+    hydrated?.customerName || delivery?.customerName || "Customer";
 
   // Live driver GPS — same pattern as DriverNavigation.
   const [driverLocation, setDriverLocation] = useState<{
@@ -171,7 +310,7 @@ export default function DriverDepotPickup() {
       } catch (e: any) {
         if (cancelled) return;
         console.warn("[DriverDepotPickup] directions error", e);
-        setRouteError(e?.message ?? "Routing failed");
+        setRouteError(friendlyDirectionsError(e));
       }
     })();
     return () => {
@@ -332,13 +471,14 @@ export default function DriverDepotPickup() {
           </ShapeSource>
         )}
 
-        {/* Depot pin */}
-        <PointAnnotation
-          id="depot"
+        {/* Depot pin — MarkerView (NOT PointAnnotation) because PointAnnotation
+            silently fails to render custom React children with LinearGradient
+            on Android with @rnmapbox/maps. */}
+        <MarkerView
           coordinate={[DEPOT.longitude, DEPOT.latitude]}
           anchor={{ x: 0.5, y: 1 }}
         >
-          <View style={st.depotMarkerWrap}>
+          <View style={st.depotMarkerWrap} pointerEvents="none">
             <LinearGradient
               colors={[colors.status.info, "#2563EB"]}
               style={st.depotMarkerPin}
@@ -347,7 +487,36 @@ export default function DriverDepotPickup() {
             </LinearGradient>
             <View style={st.depotMarkerArrow} />
           </View>
-        </PointAnnotation>
+        </MarkerView>
+
+        {/* Vehicle-aware driver chip on top of the native UserLocation puck.
+            Reads as "live, this is me, in [vehicle]" — same treatment as
+            RoutePlanModal so the two map screens feel consistent. */}
+        {driverLocation && (
+          <MarkerView
+            coordinate={[driverLocation.longitude, driverLocation.latitude]}
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <View style={st.driverMarkerWrap} pointerEvents="none">
+              <Animated.View
+                style={[
+                  st.driverPulse,
+                  {
+                    transform: [{ scale: pulseScale }],
+                    opacity: pulseOpacity,
+                  },
+                ]}
+              />
+              <View style={st.driverVehicleChip}>
+                <Icon
+                  name={vehicleIconName(vehicleType) as any}
+                  size={16}
+                  color="#FFF"
+                />
+              </View>
+            </View>
+          </MarkerView>
+        )}
       </MapView>
 
       {/* Top bar: Back + ETA + Recenter */}
@@ -514,23 +683,54 @@ export default function DriverDepotPickup() {
             },
           ]}
         >
-          <View style={st.stripItem}>
-            <Icon name="cube-outline" size={14} color={colors.text.dim} />
-            <Text style={{ color: colors.text.dim, fontSize: 12 }}>
-              {delivery?.items || 0} items
+          {/* Items cell */}
+          <View style={st.stripCell}>
+            <View style={st.stripLabelRow}>
+              <Icon name="cube-outline" size={10} color={colors.gold.muted} />
+              <Text style={[st.stripLabel, { color: colors.gold.muted }]}>
+                ITEMS
+              </Text>
+            </View>
+            <Text
+              style={[st.stripValue, { color: colors.text.primary }]}
+              numberOfLines={1}
+            >
+              {displayItemCount}
             </Text>
           </View>
-          <View style={st.stripItem}>
-            <Icon name="person-outline" size={14} color={colors.text.dim} />
-            <Text style={{ color: colors.text.dim, fontSize: 12 }}>
-              {delivery?.customerName || "Customer"}
+
+          <View style={[st.stripDivider, { backgroundColor: colors.gold.border }]} />
+
+          {/* Customer cell — flex so long names truncate gracefully */}
+          <View style={[st.stripCell, { flex: 1, minWidth: 0 }]}>
+            <View style={st.stripLabelRow}>
+              <Icon name="person-outline" size={10} color={colors.gold.muted} />
+              <Text style={[st.stripLabel, { color: colors.gold.muted }]}>
+                CUSTOMER
+              </Text>
+            </View>
+            <Text
+              style={[st.stripValue, { color: colors.text.primary }]}
+              numberOfLines={1}
+            >
+              {displayCustomerName}
             </Text>
           </View>
-          <Text
-            style={{ color: colors.gold.primary, fontWeight: "800", fontSize: 15, marginLeft: "auto" }}
-          >
-            R{delivery?.total ? Math.round(delivery.total).toLocaleString('en-ZA') : "0"}
-          </Text>
+
+          <View style={[st.stripDivider, { backgroundColor: colors.gold.border }]} />
+
+          {/* Total cell — gold to keep money emphasis */}
+          <View style={[st.stripCell, { alignItems: "flex-end" }]}>
+            <View style={st.stripLabelRow}>
+              <Icon name="cash-outline" size={10} color={colors.gold.muted} />
+              <Text style={[st.stripLabel, { color: colors.gold.muted }]}>
+                TOTAL
+              </Text>
+            </View>
+            <Text style={[st.stripValueMoney, { color: colors.gold.primary }]}>
+              R{delivery?.total ? Math.round(delivery.total).toLocaleString("en-ZA") : "0"}
+            </Text>
+          </View>
         </View>
 
         {/* Primary action */}
@@ -618,6 +818,34 @@ const st = StyleSheet.create({
   etaText: { fontSize: 14, fontWeight: "700" },
   etaDivider: { width: 1, height: 18, marginHorizontal: 4 },
   depotMarkerWrap: { alignItems: "center" },
+  driverMarkerWrap: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  driverPulse: {
+    position: "absolute",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#3B82F6",
+  },
+  driverVehicleChip: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#3B82F6",
+    borderWidth: 2.5,
+    borderColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#3B82F6",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+  },
   depotMarkerPin: {
     width: 34,
     height: 34,
@@ -717,13 +945,33 @@ const st = StyleSheet.create({
   orderStrip: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderRadius: borderRadius.md,
     borderWidth: 1,
-    gap: 14,
+    gap: 12,
     marginBottom: 14,
   },
   stripItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  stripCell: { flexDirection: "column", gap: 3, minWidth: 0 },
+  stripLabelRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  stripLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+  },
+  stripValue: { fontSize: 14, fontWeight: "700" },
+  stripValueMoney: {
+    fontSize: 16,
+    fontWeight: "900",
+    fontVariant: ["tabular-nums"],
+    letterSpacing: 0.3,
+  },
+  stripDivider: {
+    width: 1,
+    height: 28,
+    opacity: 0.6,
+  },
   primaryBtn: {
     height: 56,
     borderRadius: borderRadius.full,

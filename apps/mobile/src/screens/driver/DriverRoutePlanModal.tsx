@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,8 +8,13 @@ import {
   ScrollView,
   Dimensions,
   StatusBar,
+  Platform,
   ActivityIndicator,
+  Animated,
+  Easing,
 } from "react-native";
+import { useAuth } from "../../contexts/AuthContext";
+import { supabase } from "../../lib/supabase";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -31,6 +36,9 @@ type ActiveOrderLite = {
   total: number;
   status: string;
   delivery_address?: any;
+  // Enriched by OrderContext.refreshOrders — falls back to address recipient
+  // and then profile.full_name when delivery_address has no recipient set.
+  customer_name?: string;
 };
 
 interface Props {
@@ -98,15 +106,28 @@ const orderStopsByNearestNeighbour = (
 
 const extractStop = (o: ActiveOrderLite): Stop => {
   const addr = o.delivery_address;
-  const addressStr =
-    typeof addr === "string"
-      ? addr
-      : addr?.formatted_address || addr?.address || addr?.line_1 || "No address";
-  const customer = addr?.recipient_name || addr?.name || "Customer";
+  // Prefer the OrderContext-enriched customer_name (already cascades through
+  // delivery_address.recipient_name → profiles.full_name). Falls back to
+  // raw address fields then empty string so downstream UI can decide what
+  // to render in place of a placeholder.
+  const customer =
+    o.customer_name || addr?.recipient_name || addr?.name || "";
   const coords = addr?.coordinates || addr?.location || addr?.geo;
   const lat = Number(coords?.latitude ?? coords?.lat ?? addr?.latitude ?? addr?.lat);
   const lng = Number(coords?.longitude ?? coords?.lng ?? addr?.longitude ?? addr?.lng);
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+  // Address resolution: prefer a human address; if only coords exist (test
+  // data, or address was geocoded but never reverse-geocoded), show the
+  // coordinates so the card doesn't read "No address" while a pin clearly
+  // exists. 4dp ≈ 11m precision — enough to identify a pin without leaking
+  // exact unit numbers.
+  const addressFromText =
+    typeof addr === "string"
+      ? addr
+      : addr?.formatted_address || addr?.address || addr?.line_1;
+  const addressStr =
+    addressFromText ||
+    (hasCoords ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : "No address");
   return {
     id: o.id,
     order_number: o.order_number,
@@ -187,6 +208,103 @@ export default function DriverRoutePlanModal({
   const { colors, gradients, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const { user } = useAuth();
+
+  // Vehicle type for the driver puck. Falls back to "car" when no
+  // driver_vehicles row exists (e.g. trial account, fresh signup).
+  type VehicleType =
+    | "scooter"
+    | "car"
+    | "bakkie"
+    | "small_truck"
+    | "medium_truck"
+    | "large_truck";
+  const [vehicleType, setVehicleType] = useState<VehicleType>("car");
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      // driver_vehicles → driver_profiles.user_id → auth.users.id chain.
+      const { data: prof } = await supabase
+        .from("driver_profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (cancelled || !prof?.id) return;
+      const { data: veh } = await supabase
+        .from("driver_vehicles")
+        .select("vehicle_type")
+        .eq("driver_id", prof.id)
+        .maybeSingle();
+      if (!cancelled && veh?.vehicle_type) {
+        setVehicleType(veh.vehicle_type as VehicleType);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // Ionicons names per vehicle. Scooter doesn't have a true match — bicycle
+  // reads as a two-wheeler; bakkie + small_truck use the pickup; large
+  // trucks use the lorry icon.
+  const vehicleIcon = useMemo(() => {
+    switch (vehicleType) {
+      case "scooter":
+        return "bicycle";
+      case "car":
+        return "car-sport";
+      case "bakkie":
+      case "small_truck":
+        return "car";
+      case "medium_truck":
+      case "large_truck":
+        return "bus";
+      default:
+        return "car-sport";
+    }
+  }, [vehicleType]);
+
+  // Soft pulse animation on the driver puck — conveys "live" without a
+  // heavy reanimated dependency. Loops while modal is open.
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!visible) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1400,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [visible, pulseAnim]);
+  const pulseScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 2.4],
+  });
+  const pulseOpacity = pulseAnim.interpolate({
+    inputRange: [0, 0.2, 1],
+    outputRange: [0, 0.5, 0],
+  });
+
+  // Modal with statusBarTranslucent renders behind the Android status bar,
+  // and useSafeAreaInsets() inside a Modal context sometimes returns 0 for top
+  // (the SafeAreaProvider tree doesn't cross the Modal boundary on Android).
+  // Fall back to StatusBar.currentHeight so the title never sits under the clock.
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0,
+  );
   const [sortMode, setSortMode] = useState<"optimal" | "scheduled">("optimal");
   const [route, setRoute] = useState<DirectionsRoute | null>(null);
   const [loadingRoute, setLoadingRoute] = useState(false);
@@ -194,6 +312,11 @@ export default function DriverRoutePlanModal({
     latitude: number;
     longitude: number;
   } | null>(null);
+  // Tap-to-focus state: when a stop card is tapped, pan camera to that stop
+  // and highlight its marker. Tapping the same card a second time clears the
+  // focus and the camera flies back to the overview bounds.
+  const [focusedStopId, setFocusedStopId] = useState<string | null>(null);
+  const cameraRef = useRef<Mapbox.Camera>(null);
 
   // Acquire driver GPS once when the modal opens. Single-shot (not watch) —
   // the modal is a planning view, not active navigation, so periodic re-fixes
@@ -243,6 +366,26 @@ export default function DriverRoutePlanModal({
     [stops],
   );
 
+  // Per-stop leg distance from the previous waypoint (driver location for the
+  // first stop). Haversine — same approximation we use on the dashboard cards.
+  // Real route distance would need per-leg data from Directions API, which
+  // would also require N waypoint calls if the optimal sort changes mid-screen.
+  // Straight-line is "good enough" to help the driver plan the run.
+  const legDistanceText = useMemo<(string | null)[]>(() => {
+    if (allCoordsMissing) return stops.map(() => null);
+    const anchor = driverLocation ?? null;
+    return stops.map((s, i) => {
+      const from =
+        i === 0
+          ? anchor
+          : { latitude: stops[i - 1].latitude, longitude: stops[i - 1].longitude };
+      if (!from) return null;
+      const km = haversineKm(from, { latitude: s.latitude, longitude: s.longitude });
+      if (km < 1) return `${Math.round(km * 1000)} m`;
+      return `${km.toFixed(1)} km`;
+    });
+  }, [stops, driverLocation, allCoordsMissing]);
+
   // Fetch route from Mapbox Directions API whenever stop order changes
   useEffect(() => {
     let cancelled = false;
@@ -273,10 +416,24 @@ export default function DriverRoutePlanModal({
     };
   }, [visible, stops, driverLocation, allCoordsMissing]);
 
-  // Compute camera bounds from stops + driver position. We include the driver
-  // so the camera frames "where I am" + "where I'm going" together.
+  // Compute camera config from stops + driver position + focus state.
+  // Focus has priority: when a card is tapped the camera centres on that
+  // stop. Otherwise we fit bounds around stops + driver, with sensible
+  // fallbacks when coords collapse or are missing entirely.
   const cameraConfig = useMemo(() => {
     if (stops.length === 0) return null;
+
+    // FOCUSED — overrides bounds. Driver tapped a sequence card.
+    if (focusedStopId) {
+      const focused = stops.find((s) => s.id === focusedStopId);
+      if (focused && !focused.isFallback) {
+        return {
+          kind: "center" as const,
+          center: [focused.longitude, focused.latitude] as [number, number],
+          zoom: 15,
+        };
+      }
+    }
 
     const lngs: number[] = [];
     const lats: number[] = [];
@@ -325,7 +482,7 @@ export default function DriverRoutePlanModal({
       ne: [maxLng, maxLat] as [number, number],
       sw: [minLng, minLat] as [number, number],
     };
-  }, [stops, driverLocation, allCoordsMissing]);
+  }, [stops, driverLocation, allCoordsMissing, focusedStopId]);
 
   // Straight-line fallback when Directions API is unavailable AND we have
   // valid coords. With missing coords, don't draw anything (would be a 0-length
@@ -390,7 +547,7 @@ export default function DriverRoutePlanModal({
           style={[
             s.topBar,
             {
-              paddingTop: insets.top + 8,
+              paddingTop: topInset + 8,
               backgroundColor: colors.background.primary,
               borderBottomColor: colors.gold.border,
             },
@@ -480,18 +637,23 @@ export default function DriverRoutePlanModal({
                 isDark ? Mapbox.StyleURL.Dark : Mapbox.StyleURL.Street
               }
               logoEnabled={false}
-              attributionEnabled
-              compassEnabled
+              attributionEnabled={false}
+              compassEnabled={false}
+              scaleBarEnabled={false}
             >
               {cameraConfig?.kind === "bounds" && (
                 <Mapbox.Camera
+                  ref={cameraRef}
                   bounds={{
                     ne: cameraConfig.ne,
                     sw: cameraConfig.sw,
-                    paddingTop: 80,
-                    paddingBottom: 80,
-                    paddingLeft: 60,
-                    paddingRight: 60,
+                    // Markers + distance pills extend up + down; pad generously
+                    // so neither the highest stop nor the driver dot near the
+                    // bottom edge gets clipped on bounds-fit zoom.
+                    paddingTop: 100,
+                    paddingBottom: 100,
+                    paddingLeft: 80,
+                    paddingRight: 80,
                   }}
                   animationMode="flyTo"
                   animationDuration={800}
@@ -499,6 +661,7 @@ export default function DriverRoutePlanModal({
               )}
               {cameraConfig?.kind === "center" && (
                 <Mapbox.Camera
+                  ref={cameraRef}
                   centerCoordinate={cameraConfig.center}
                   zoomLevel={cameraConfig.zoom}
                   animationMode="flyTo"
@@ -534,39 +697,91 @@ export default function DriverRoutePlanModal({
 
               {/* Numbered stop markers — MarkerView renders custom React views
                   reliably on both platforms (PointAnnotation's child rendering
-                  is buggy on Android with LinearGradient). Only render when
-                  coords are real; otherwise the warning overlay covers the
-                  collapsed-to-fallback case. */}
+                  is buggy on Android with LinearGradient). Number + leg
+                  distance pill so the driver can read the plan at a glance:
+                  "stop #2 is 1.4 km from stop #1". */}
               {!allCoordsMissing &&
-                stops.map((stp, i) => (
-                  <Mapbox.MarkerView
-                    key={stp.id}
-                    coordinate={[stp.longitude, stp.latitude]}
-                    anchor={{ x: 0.5, y: 0.5 }}
-                  >
-                    <View style={s.markerWrap} pointerEvents="none">
-                      <LinearGradient
-                        colors={[...gradients.gold]}
-                        style={s.markerInner}
+                // Render focused marker LAST so it always wins z-order over
+                // sibling markers when coordinates coincide (e.g. multiple
+                // orders to the same address). Without this, an overlapping
+                // marker hides the highlighted one.
+                stops
+                  .map((stp, i) => ({ stp, i }))
+                  .sort((a, b) =>
+                    a.stp.id === focusedStopId
+                      ? 1
+                      : b.stp.id === focusedStopId
+                        ? -1
+                        : 0,
+                  )
+                  .map(({ stp, i }) => {
+                    const isFocused = focusedStopId === stp.id;
+                    return (
+                      <Mapbox.MarkerView
+                        key={stp.id}
+                        coordinate={[stp.longitude, stp.latitude]}
+                        anchor={{ x: 0.5, y: 1 }}
                       >
-                        <Text style={s.markerText}>{i + 1}</Text>
-                      </LinearGradient>
-                    </View>
-                  </Mapbox.MarkerView>
-                ))}
+                        <View style={s.markerWrap} pointerEvents="none">
+                          {/* Halo ring shown only when focused — pulls the eye
+                              to the selected stop without an explicit animation. */}
+                          {isFocused && <View style={s.markerHalo} />}
+                          <LinearGradient
+                            colors={[...gradients.gold]}
+                            style={[
+                              s.markerInner,
+                              isFocused && s.markerInnerFocused,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                s.markerText,
+                                isFocused && s.markerTextFocused,
+                              ]}
+                            >
+                              {i + 1}
+                            </Text>
+                          </LinearGradient>
+                          {legDistanceText[i] && (
+                            <View style={s.markerDistancePill}>
+                              <Text style={s.markerDistanceText}>
+                                {legDistanceText[i]}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </Mapbox.MarkerView>
+                    );
+                  })}
 
-              {/* Explicit driver marker — separate from UserLocation puck so
-                  the driver's position is clearly distinguishable from the
-                  numbered stops even if the native location puck is hidden
-                  by map style. */}
+              {/* Explicit driver marker — vehicle icon + soft pulse halo so
+                  the puck reads as "live, this is me, in [vehicle]". Replaces
+                  the generic blue dot; the native UserLocation puck below
+                  still draws when permission granted (we keep both — the
+                  native one updates in real-time via the GPS provider, this
+                  one is the styled overlay tied to the single-shot fix). */}
               {driverLocation && (
                 <Mapbox.MarkerView
                   coordinate={[driverLocation.longitude, driverLocation.latitude]}
                   anchor={{ x: 0.5, y: 0.5 }}
                 >
                   <View style={s.driverMarkerWrap} pointerEvents="none">
-                    <View style={s.driverMarkerRing} />
-                    <View style={s.driverMarkerDot} />
+                    <Animated.View
+                      style={[
+                        s.driverPulse,
+                        {
+                          transform: [{ scale: pulseScale }],
+                          opacity: pulseOpacity,
+                        },
+                      ]}
+                    />
+                    <View style={s.driverVehicleChip}>
+                      <Icon
+                        name={vehicleIcon as any}
+                        size={16}
+                        color="#FFF"
+                      />
+                    </View>
                   </View>
                 </Mapbox.MarkerView>
               )}
@@ -631,14 +846,29 @@ export default function DriverRoutePlanModal({
           ) : (
             stops.map((stp, i) => {
               const action = actionForStop(stp.status);
+              const isFocused = focusedStopId === stp.id;
               return (
-                <View
+                <TouchableOpacity
                   key={stp.id}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Show stop ${i + 1} on map`}
+                  // Tap the card body to focus / unfocus on the map. The
+                  // Start-Navigation TouchableOpacity inside still fires
+                  // independently — its onPress doesn't bubble.
+                  onPress={() =>
+                    setFocusedStopId((prev) => (prev === stp.id ? null : stp.id))
+                  }
                   style={[
                     s.stopCard,
                     {
                       backgroundColor: colors.background.card,
-                      borderColor: colors.gold.border,
+                      // Focused card lights up its border in primary gold;
+                      // unfocused stays subtle so the focused one stands out.
+                      borderColor: isFocused
+                        ? colors.gold.primary
+                        : colors.gold.border,
+                      borderWidth: isFocused ? 2 : 1,
                     },
                   ]}
                 >
@@ -661,7 +891,7 @@ export default function DriverRoutePlanModal({
                       style={[s.stopCustomer, { color: colors.text.secondary }]}
                       numberOfLines={1}
                     >
-                      {stp.customer}
+                      {stp.customer || "Customer"}
                     </Text>
                     <Text
                       style={[s.stopAddr, { color: colors.text.muted }]}
@@ -695,7 +925,7 @@ export default function DriverRoutePlanModal({
                       </LinearGradient>
                     </TouchableOpacity>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })
           )}
@@ -729,7 +959,10 @@ const s = StyleSheet.create({
   sortToggle: { flexDirection: "row", padding: 2, borderRadius: 18 },
   sortChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
   sortChipText: { fontSize: 11, fontWeight: "700" },
-  mapWrap: { height: width * 0.85, width: "100%" },
+  // Almost-square map gives the bounds-fit camera enough vertical room to
+  // pull all stops + driver + distance labels onto one screen without the
+  // padding cropping anything off. Was 0.85 — too letterbox for 3+ stops.
+  mapWrap: { height: width * 1.0, width: "100%" },
   map: { width: "100%", height: "100%" },
   loadingBadge: {
     position: "absolute",
@@ -813,7 +1046,24 @@ const s = StyleSheet.create({
     paddingVertical: 8,
   },
   navBtnText: { fontSize: 12, fontWeight: "800", color: "#050403" },
-  markerWrap: { alignItems: "center", justifyContent: "center" },
+  markerWrap: { alignItems: "center", justifyContent: "flex-end", gap: 3 },
+  markerDistancePill: {
+    backgroundColor: "rgba(5,4,3,0.92)",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: "rgba(212,175,55,0.55)",
+    minWidth: 36,
+    alignItems: "center",
+  },
+  markerDistanceText: {
+    color: "#F5E6A3",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+    fontVariant: ["tabular-nums"],
+  },
   markerInner: {
     width: 32,
     height: 32,
@@ -823,26 +1073,62 @@ const s = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#fff",
   },
+  // Focused marker grows + gets a darker gold outline + drop shadow so it
+  // stands out from sibling markers without needing animation libs.
+  markerInnerFocused: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderColor: "#050403",
+    shadowColor: "#D4AF37",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  // Soft semi-transparent ring around the focused marker — visual pulse
+  // without an animation, since the eye reads concentric rings as "ping".
+  markerHalo: {
+    position: "absolute",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(212,175,55,0.22)",
+    borderWidth: 1,
+    borderColor: "rgba(212,175,55,0.55)",
+    top: -10,
+  },
   markerText: { color: "#050403", fontWeight: "800", fontSize: 14 },
+  markerTextFocused: { fontSize: 18 },
   driverMarkerWrap: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     alignItems: "center",
     justifyContent: "center",
   },
-  driverMarkerRing: {
+  // Soft expanding halo that pulses to show the driver is live.
+  driverPulse: {
     position: "absolute",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#3B82F6",
+  },
+  // Solid chip with the vehicle icon — reads as "the driver is here, in X".
+  driverVehicleChip: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "rgba(59,130,246,0.25)",
-  },
-  driverMarkerDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
     backgroundColor: "#3B82F6",
     borderWidth: 2.5,
     borderColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    // Lifts the chip above the pulsing halo.
+    elevation: 4,
+    shadowColor: "#3B82F6",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
   },
 });

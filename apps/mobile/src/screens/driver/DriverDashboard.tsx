@@ -14,6 +14,8 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
+import * as Location from "expo-location";
+import { supabase } from "../../lib/supabase";
 import { Icon } from "../../components/Icon";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTheme } from "../../contexts/ThemeContext";
@@ -21,6 +23,7 @@ import { useOrders } from "../../contexts/OrderContext";
 import { spacing, borderRadius, typography } from "../../theme";
 import { formatCurrency, formatRand } from "../../utils/currency";
 import { useDriverLocationPush } from "../../hooks/useDriverLocationPush";
+import DriverRoutePlanModal from "./DriverRoutePlanModal";
 
 const { width } = Dimensions.get("window");
 
@@ -86,7 +89,7 @@ const PROGRESS_MAP: Record<string, number> = {
 export default function DriverDashboard() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { user, signOut } = useAuth();
+  const { user, role, signOut } = useAuth();
   const { colors, gradients, shadows, isDark, toggleTheme } = useTheme();
   const {
     activeOrders,
@@ -95,11 +98,13 @@ export default function DriverDashboard() {
     markEnRoute,
     markDelivered,
     refreshOrders,
+    unreadCount,
   } = useOrders();
 
   const [isOnline, setIsOnline] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [routePlanOpen, setRoutePlanOpen] = useState(false);
   /** Tracks which driver_assigned orders this driver has explicitly accepted this session */
   const [acceptedIds, setAcceptedIds] = useState<Set<string>>(new Set());
   /** Seconds remaining per assignment id — updated every second */
@@ -107,6 +112,35 @@ export default function DriverDashboard() {
 
   const ACCEPTANCE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
   const [expiredAssignmentIds, setExpiredAssignmentIds] = useState<Set<string>>(new Set());
+
+  // One-shot driver GPS for delivery-card distance/ETA. The active live-tracking
+  // hook is write-only (pushes to server), so we acquire location locally here.
+  // No watch — cards re-render on activeOrders refresh, not on every GPS tick,
+  // and a planning view doesn't need sub-second freshness.
+  const [driverGps, setDriverGps] = useState<{ latitude: number; longitude: number } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (cancelled || status !== "granted") return;
+      try {
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (!cancelled) {
+          setDriverGps({
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+          });
+        }
+      } catch (e) {
+        // Silent — distance/ETA cells will show "—"
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Live-tracking: while this driver has a picked-up / en-route order,
   // push GPS every ~8s so the customer tracking screen sees a moving pin.
@@ -125,6 +159,26 @@ export default function DriverDashboard() {
 
   // Map activeOrders from OrderContext to the Delivery format used by this screen
   const deliveries: Delivery[] = useMemo(() => {
+    // Haversine kilometres — straight-line distance is fine for the card hint;
+    // Mapbox Directions API gives the real route distance inside DepotPickup /
+    // Navigation. Calling Directions API per card would burn the free tier.
+    const haversineKm = (
+      a: { latitude: number; longitude: number },
+      b: { latitude: number; longitude: number },
+    ): number => {
+      const R = 6371;
+      const toRad = (d: number) => (d * Math.PI) / 180;
+      const dLat = toRad(b.latitude - a.latitude);
+      const dLng = toRad(b.longitude - a.longitude);
+      const lat1 = toRad(a.latitude);
+      const lat2 = toRad(b.latitude);
+      const h =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    };
+    const AVG_CITY_SPEED_KMH = 30;
+
     return activeOrders
       .filter((o) => !dismissedIds.has(o.id))
       .map((o) => {
@@ -133,9 +187,37 @@ export default function DriverDashboard() {
           typeof addr === "string"
             ? addr
             : addr?.formatted_address || addr?.address || "No address";
-        const customerName =
-          addr?.recipient_name || addr?.name || "Customer";
+        // customer_name is now hydrated by OrderContext from delivery_address
+        // or the profile linked to user_id. Falls through to "Customer" only
+        // as a final display-time guard.
+        const customerName = (o as any).customer_name || "Customer";
         const customerPhone = addr?.phone || addr?.recipient_phone || "";
+        const itemCount = (o as any).order_items?.length ?? 0;
+
+        // Distance / ETA from driver GPS to delivery coords. delivery_address
+        // shape: { coordinates: { lat, lng } } OR { coordinates: { latitude,
+        // longitude } }. Both forms appear in the codebase — handle both.
+        const coords = addr?.coordinates || addr?.location || addr?.geo;
+        const destLat = Number(coords?.latitude ?? coords?.lat);
+        const destLng = Number(coords?.longitude ?? coords?.lng);
+        let distanceStr = "—";
+        let etaStr = o.eta_minutes ? `${o.eta_minutes} min` : "—";
+        if (
+          driverGps &&
+          Number.isFinite(destLat) &&
+          Number.isFinite(destLng)
+        ) {
+          const km = haversineKm(driverGps, { latitude: destLat, longitude: destLng });
+          distanceStr =
+            km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
+          // Only overwrite ETA when the server didn't already provide one
+          // (an en-route order has a real Mapbox-computed ETA from when the
+          // driver started navigation; haversine would be less accurate).
+          if (!o.eta_minutes) {
+            const mins = Math.max(1, Math.round((km / AVG_CITY_SPEED_KMH) * 60));
+            etaStr = `~${mins} min`;
+          }
+        }
 
         const now = new Date();
         const created = new Date(o.created_at);
@@ -155,9 +237,9 @@ export default function DriverDashboard() {
           customerName,
           customerPhone,
           address: addressStr,
-          distance: "--",
-          estimatedTime: o.eta_minutes ? `${o.eta_minutes} min` : "--",
-          items: 0,
+          distance: distanceStr,
+          estimatedTime: etaStr,
+          items: itemCount,
           total: o.total || 0,
           status: o.status as Delivery["status"],
           createdAt,
@@ -167,7 +249,7 @@ export default function DriverDashboard() {
           assignedAtISO: (o as any).driver_assigned_at ?? (o as any).updated_at ?? o.created_at,
         };
       });
-  }, [activeOrders, dismissedIds]);
+  }, [activeOrders, dismissedIds, driverGps]);
 
   // Live countdown + expiry checker — ticks every second for unaccepted driver_assigned orders
   useEffect(() => {
@@ -200,16 +282,93 @@ export default function DriverDashboard() {
     return () => clearInterval(interval);
   }, [deliveries, acceptedIds]);
 
-  const todayStats = useMemo(() => {
-    const delivered = activeOrders.filter((o) => o.status === "delivered");
-    const earnings = delivered.reduce((sum, o) => sum + (o.total || 0), 0);
-    return {
-      completed: delivered.length,
-      earnings,
-      rating: 4.9,
-      distance: 0,
+  // Real driver rating from driver_profiles (per migration 011). One-shot
+  // fetch on mount — rating doesn't change often enough to need a watch.
+  // total_deliveries here is lifetime; the "Deliveries" tile shows TODAY only.
+  const [driverRating, setDriverRating] = useState<number | null>(null);
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("driver_profiles")
+        .select("rating")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!cancelled && data?.rating != null) {
+        setDriverRating(Number(data.rating));
+      }
+    })();
+    return () => {
+      cancelled = true;
     };
-  }, [activeOrders]);
+  }, [user?.id]);
+
+  const todayStats = useMemo(() => {
+    // Today in local time — start at midnight.
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const startMs = startOfDay.getTime();
+
+    // Deliveries completed TODAY only — use delivered_at (set by the
+    // status-transition function when status flips to 'delivered'), falling
+    // back to updated_at if a legacy row lacks it.
+    const deliveredToday = activeOrders.filter((o) => {
+      if (o.status !== "delivered") return false;
+      const t = (o as any).delivered_at ?? (o as any).updated_at;
+      if (!t) return false;
+      return new Date(t).getTime() >= startMs;
+    });
+
+    // Earnings = sum of delivery_fee (the per-order driver-attributable fee).
+    // delivery_fee column exists on orders per the original schema migration.
+    // Fall back to a 10% slice of order total when delivery_fee is 0/missing
+    // so legacy seeded data still gives a non-zero hint.
+    const earnings = deliveredToday.reduce((sum, o) => {
+      const fee = Number((o as any).delivery_fee ?? 0);
+      return sum + (fee > 0 ? fee : (o.total || 0) * 0.1);
+    }, 0);
+
+    // Distance proxy: haversine from depot to each delivery address.
+    // Real route distance would require a Mapbox call per order; the proxy
+    // is cheap and "good enough" for an at-a-glance tile. Depot constant
+    // mirrors DriverDepotPickup.tsx — when multi-depot lands this should
+    // come from order.fulfillment_depot_id.
+    const DEPOT = { latitude: -33.9215, longitude: 18.4184 };
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const haversineKm = (
+      a: { latitude: number; longitude: number },
+      b: { latitude: number; longitude: number },
+    ) => {
+      const R = 6371;
+      const dLat = toRad(b.latitude - a.latitude);
+      const dLng = toRad(b.longitude - a.longitude);
+      const lat1 = toRad(a.latitude);
+      const lat2 = toRad(b.latitude);
+      const h =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    };
+    const distanceKm = deliveredToday.reduce((sum, o) => {
+      const coords =
+        o.delivery_address?.coordinates ||
+        o.delivery_address?.location ||
+        o.delivery_address?.geo;
+      const lat = Number(coords?.latitude ?? coords?.lat);
+      const lng = Number(coords?.longitude ?? coords?.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return sum;
+      return sum + haversineKm(DEPOT, { latitude: lat, longitude: lng });
+    }, 0);
+
+    return {
+      completed: deliveredToday.length,
+      earnings,
+      rating: driverRating ?? 5.0,
+      // One decimal under 10km, integer above. Avoid "0.0" — show "0" cleanly.
+      distance: distanceKm === 0 ? 0 : Number(distanceKm.toFixed(distanceKm < 10 ? 1 : 0)),
+    };
+  }, [activeOrders, driverRating]);
 
   const activeDeliveries = deliveries.filter((d) => d.status !== "delivered");
   const pendingCount = deliveries.filter((d) => d.status === "pending").length;
@@ -254,9 +413,22 @@ export default function DriverDashboard() {
     [markPickedUp, markEnRoute, markDelivered],
   );
 
-  const activeDelivery = deliveries.find(
-    (d) => d.status === "driver_assigned" || d.status === "picked_up" || d.status === "en_route",
-  );
+  // Latest active delivery — sort by assignedAt/createdAt DESC so a brand-new
+  // assignment surfaces immediately as the hero card.
+  const activeDelivery = useMemo(() => {
+    const candidates = deliveries.filter(
+      (d) =>
+        d.status === "driver_assigned" ||
+        d.status === "picked_up" ||
+        d.status === "en_route",
+    );
+    if (candidates.length === 0) return undefined;
+    return [...candidates].sort((a, b) => {
+      const aT = new Date(a.assignedAtISO || a.createdAt).getTime();
+      const bT = new Date(b.assignedAtISO || b.createdAt).getTime();
+      return bT - aT;
+    })[0];
+  }, [deliveries]);
 
   /** Format seconds remaining into "4:32" style label */
   const formatCountdown = (secs: number): string => {
@@ -290,8 +462,8 @@ export default function DriverDashboard() {
             />
             <View>
               <View style={st.headerTitleRow}>
-                <Text style={[st.headerTitle, { color: colors.text.primary }]}>
-                  LIQZAR Driver
+                <Text style={[st.headerTitle, { color: colors.text.primary }]} numberOfLines={1}>
+                  {user?.full_name || "Driver"}
                 </Text>
                 <View
                   style={[
@@ -307,12 +479,141 @@ export default function DriverDashboard() {
                   ]}
                 />
               </View>
-              <Text style={{ fontSize: 11, color: colors.gold.muted }}>
-                {user?.full_name || "Driver"}
-              </Text>
+              {/* Identity strip — phone · role pill. Tight horizontal use,
+                  premium feel, role generalises if header is reused. */}
+              <View style={st.identityStrip}>
+                {user?.phone && (
+                  <>
+                    <Icon
+                      name="call-outline"
+                      size={10}
+                      color={colors.gold.muted}
+                    />
+                    <Text style={st.identityPhone}>
+                      {(() => {
+                        const digits = user.phone.replace(/\D/g, "");
+                        const local = digits.startsWith("27")
+                          ? "0" + digits.slice(2)
+                          : digits;
+                        return local.length === 10
+                          ? `${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`
+                          : user.phone;
+                      })()}
+                    </Text>
+                    <View
+                      style={[
+                        st.identitySeparator,
+                        { backgroundColor: colors.gold.border },
+                      ]}
+                    />
+                  </>
+                )}
+                <View
+                  style={[
+                    st.rolePill,
+                    {
+                      backgroundColor: colors.gold.primary + (isDark ? "1A" : "14"),
+                      borderColor: colors.gold.primary + (isDark ? "33" : "26"),
+                    },
+                  ]}
+                >
+                  <Icon
+                    name={
+                      role === "admin"
+                        ? "key-outline"
+                        : role === "driver"
+                          ? "shield-checkmark-outline"
+                          : "person-outline"
+                    }
+                    size={9}
+                    color={colors.gold.primary}
+                  />
+                  <Text style={[st.rolePillText, { color: colors.gold.primary }]}>
+                    {(role ?? "driver").toUpperCase()}
+                  </Text>
+                </View>
+
+                {/* Theme toggle — small chip on the identity strip so it's
+                    discoverable without competing with the action icons.
+                    Icon morphs between sun (currently in dark) and moon
+                    (currently in light) so the affordance reads as
+                    "tap to switch to THAT mode". */}
+                <TouchableOpacity
+                  onPress={toggleTheme}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel={
+                    isDark ? "Switch to light mode" : "Switch to dark mode"
+                  }
+                  accessibilityRole="button"
+                  style={[
+                    st.themeToggle,
+                    {
+                      backgroundColor: colors.gold.primary + (isDark ? "12" : "0E"),
+                      borderColor: colors.gold.primary + (isDark ? "26" : "1F"),
+                    },
+                  ]}
+                >
+                  <Icon
+                    name={isDark ? "sunny-outline" : "moon-outline"}
+                    size={11}
+                    color={colors.gold.primary}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
           <View style={st.headerRight}>
+            {/* Notification bell with unread badge */}
+            <TouchableOpacity
+              style={[
+                st.iconBtn,
+                {
+                  backgroundColor: isDark
+                    ? "rgba(255,255,255,0.08)"
+                    : "rgba(0,0,0,0.05)",
+                },
+              ]}
+              onPress={() => navigation.navigate("Notifications")}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel={
+                unreadCount > 0
+                  ? `Notifications, ${unreadCount} unread`
+                  : "Notifications"
+              }
+              accessibilityRole="button"
+            >
+              <Icon
+                name="notifications-outline"
+                size={18}
+                color={colors.gold.primary}
+              />
+              {unreadCount > 0 && (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: -2,
+                    right: -2,
+                    minWidth: 16,
+                    height: 16,
+                    paddingHorizontal: 4,
+                    borderRadius: 8,
+                    backgroundColor: colors.status.error,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 9,
+                      color: "#fff",
+                      fontWeight: "700",
+                    }}
+                  >
+                    {unreadCount > 9 ? "9+" : String(unreadCount)}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
             <TouchableOpacity
               style={[
                 st.iconBtn,
@@ -467,39 +768,49 @@ export default function DriverDashboard() {
         </TouchableOpacity>
 
         {/* Stats Row */}
-        <View style={st.statsRow}>
+        <View style={st.statsGrid}>
           {[
+            // Gradient stop opacities mirror the onlineBar above: 15%/6% in dark,
+            // 10%/3% in light. Keeps the whole header (status card + 4 tiles)
+            // as one matched set.
             {
               label: "Deliveries",
               value: `${todayStats.completed}`,
+              hint: "completed today",
               icon: "bicycle-outline",
               accent: colors.status.info,
-              gradDark: ["rgba(59,130,246,0.12)", "rgba(59,130,246,0.04)"] as string[],
-              gradLight: ["rgba(59,130,246,0.08)", "rgba(59,130,246,0.02)"] as string[],
+              gradDark: ["rgba(59,130,246,0.15)", "rgba(59,130,246,0.06)"] as string[],
+              gradLight: ["rgba(59,130,246,0.10)", "rgba(59,130,246,0.03)"] as string[],
             },
             {
               label: "Earned",
               value: formatRand(todayStats.earnings),
+              hint: "in delivery fees",
               icon: "cash-outline",
               accent: colors.status.success,
-              gradDark: ["rgba(16,185,129,0.12)", "rgba(16,185,129,0.04)"] as string[],
-              gradLight: ["rgba(16,185,129,0.08)", "rgba(16,185,129,0.02)"] as string[],
+              gradDark: ["rgba(16,185,129,0.15)", "rgba(16,185,129,0.06)"] as string[],
+              gradLight: ["rgba(16,185,129,0.10)", "rgba(16,185,129,0.03)"] as string[],
             },
             {
               label: "Rating",
-              value: `${todayStats.rating}`,
-              icon: "star-outline",
+              // Always one decimal so "5" never appears (looks like a count, not a rating)
+              value: todayStats.rating.toFixed(1),
+              hint: "out of 5.0",
+              icon: "star",
               accent: colors.status.warning,
-              gradDark: ["rgba(245,158,11,0.12)", "rgba(245,158,11,0.04)"] as string[],
-              gradLight: ["rgba(245,158,11,0.08)", "rgba(245,158,11,0.02)"] as string[],
+              gradDark: ["rgba(245,158,11,0.15)", "rgba(245,158,11,0.06)"] as string[],
+              gradLight: ["rgba(245,158,11,0.10)", "rgba(245,158,11,0.03)"] as string[],
             },
             {
               label: "Distance",
-              value: `${todayStats.distance}km`,
+              // Show "—" instead of "0 km" when there's no data yet
+              value:
+                todayStats.distance === 0 ? "—" : `${todayStats.distance} km`,
+              hint: "depot → drops",
               icon: "speedometer-outline",
               accent: "#8B5CF6",
-              gradDark: ["rgba(139,92,246,0.12)", "rgba(139,92,246,0.04)"] as string[],
-              gradLight: ["rgba(139,92,246,0.08)", "rgba(139,92,246,0.02)"] as string[],
+              gradDark: ["rgba(139,92,246,0.15)", "rgba(139,92,246,0.06)"] as string[],
+              gradLight: ["rgba(139,92,246,0.10)", "rgba(139,92,246,0.03)"] as string[],
             },
           ].map((stat, i) => (
             <View
@@ -507,37 +818,70 @@ export default function DriverDashboard() {
               style={[
                 st.statCardOuter,
                 {
+                  // Soft accent-coloured halo — mirrors activeCard's
+                  // shadow recipe (offset 4y, opacity 0.25 dark / 0.12 light,
+                  // radius 16). Gives every tile the same lifted feel.
                   shadowColor: stat.accent,
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: isDark ? 0.15 : 0.08,
-                  shadowRadius: 8,
-                  elevation: 3,
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: isDark ? 0.25 : 0.12,
+                  shadowRadius: 16,
+                  elevation: 6,
                 },
               ]}
             >
-              <LinearGradient
-                colors={isDark ? stat.gradDark : stat.gradLight}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
+              <View
                 style={[
                   st.statCard,
                   {
-                    borderColor: stat.accent + (isDark ? "20" : "18"),
+                    // Neutral card bg + saturated 2px accent border — same
+                    // formula as the "Current Delivery" card with gold. The
+                    // border carries the colour, the inside stays calm.
+                    backgroundColor: colors.background.card,
+                    borderColor: stat.accent,
                   },
                 ]}
               >
-                <View
-                  style={[st.statIcon, { backgroundColor: stat.accent + "20" }]}
-                >
-                  <Icon name={stat.icon} size={18} color={stat.accent} />
+                {/* Top row: label + icon chip */}
+                <View style={st.statCardTopRow}>
+                  <Text
+                    style={[
+                      st.statLabel,
+                      { color: stat.accent },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {stat.label}
+                  </Text>
+                  <View
+                    style={[
+                      st.statIcon,
+                      {
+                        backgroundColor: stat.accent + (isDark ? "26" : "1F"),
+                      },
+                    ]}
+                  >
+                    <Icon name={stat.icon} size={14} color={stat.accent} />
+                  </View>
                 </View>
-                <Text style={[st.statValue, { color: colors.text.primary }]}>
-                  {stat.value}
-                </Text>
-                <Text style={[st.statLabel, { color: colors.text.dim }]}>
-                  {stat.label}
-                </Text>
-              </LinearGradient>
+
+                {/* Hero value — bottom-aligned, dominant */}
+                <View style={st.statValueWrap}>
+                  <Text
+                    style={[st.statValue, { color: colors.text.primary }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.6}
+                  >
+                    {stat.value}
+                  </Text>
+                  <Text
+                    style={[st.statHint, { color: colors.text.muted }]}
+                    numberOfLines={1}
+                  >
+                    {stat.hint}
+                  </Text>
+                </View>
+              </View>
             </View>
           ))}
         </View>
@@ -769,6 +1113,63 @@ export default function DriverDashboard() {
               )}
             </View>
           </>
+        )}
+
+        {/* Route Plan CTA — only show when driver actually has stops to plan */}
+        {activeDeliveries.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setRoutePlanOpen(true)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Open today's route plan"
+            style={{ marginHorizontal: spacing.md, marginTop: spacing.md }}
+          >
+            <LinearGradient
+              colors={[...gradients.gold]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingHorizontal: spacing.lg,
+                paddingVertical: 14,
+                borderRadius: borderRadius.lg,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <View
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: "rgba(0,0,0,0.18)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Icon name="map-outline" size={20} color="#050403" />
+                </View>
+                <View>
+                  <Text
+                    style={{
+                      color: "#050403",
+                      fontWeight: "800",
+                      fontSize: 14,
+                      letterSpacing: 0.3,
+                    }}
+                  >
+                    Route Plan
+                  </Text>
+                  <Text style={{ color: "rgba(5,4,3,0.7)", fontSize: 11, marginTop: 2 }}>
+                    {activeDeliveries.length}{" "}
+                    {activeDeliveries.length === 1 ? "stop" : "stops"} · tap to view map
+                  </Text>
+                </View>
+              </View>
+              <Icon name="arrow-forward" size={18} color="#050403" />
+            </LinearGradient>
+          </TouchableOpacity>
         )}
 
         {/* Active Deliveries */}
@@ -1300,6 +1701,12 @@ export default function DriverDashboard() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <DriverRoutePlanModal
+        visible={routePlanOpen}
+        onClose={() => setRoutePlanOpen(false)}
+        orders={activeOrders.filter((o) => o.status !== "delivered")}
+      />
     </View>
   );
 }
@@ -1325,6 +1732,50 @@ const st = StyleSheet.create({
     height: 9,
     borderRadius: 4.5,
   },
+
+  /* ── Identity strip: phone · role pill ─── */
+  identityStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 3,
+  },
+  identityPhone: {
+    fontSize: 11,
+    color: "rgba(212,175,55,0.65)",
+    letterSpacing: 0.4,
+    fontVariant: ["tabular-nums"],
+  },
+  identitySeparator: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    marginHorizontal: 2,
+    opacity: 0.7,
+  },
+  rolePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  rolePillText: {
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+  },
+  themeToggle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+
   headerRight: { flexDirection: "row", gap: 6 },
   iconBtn: {
     width: 36,
@@ -1362,40 +1813,67 @@ const st = StyleSheet.create({
   },
 
   /* ── Stats ──────────────────────────────── */
-  statsRow: {
+  statsGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
     paddingBottom: spacing.sm,
-    gap: 8,
+    gap: 12,
   },
   statCardOuter: {
-    flex: 1,
-    borderRadius: borderRadius.lg,
+    // 2×2 grid: subtract horizontal padding (2 × spacing.md = 32) + one 12 gap,
+    // then ÷ 2. Math.floor guards against sub-pixel rounding wrapping to 1-col.
+    width: Math.floor((width - spacing.md * 2 - 14) / 2),
+    borderRadius: borderRadius.xl,
   },
   statCard: {
-    flex: 1,
+    minHeight: 104,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 16,
+    // Mirrors `activeCard` (Current Delivery) — xl radius + 2px saturated
+    // accent border. The border is the only colour signal; the inside is
+    // a neutral card surface like the Current Delivery card.
+    borderRadius: borderRadius.xl,
+    borderWidth: 2,
+    justifyContent: "space-between",
+  },
+  statCardTopRow: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 6,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
+    justifyContent: "space-between",
   },
   statIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
+  },
+  statValueWrap: {
+    marginTop: 12,
   },
   statValue: {
-    fontSize: 28,
-    fontWeight: "800",
-    marginBottom: 2,
-    letterSpacing: -0.5,
+    fontSize: 30,
+    fontWeight: "900",
+    letterSpacing: -0.8,
+    lineHeight: 34,
+    fontVariant: ["tabular-nums"],
   },
-  statLabel: { fontSize: 10, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.4,
+  },
+  statHint: {
+    fontSize: 10,
+    fontWeight: "500",
+    letterSpacing: 0.2,
+    marginTop: 3,
+    opacity: 0.7,
+  },
 
   /* ── Active Delivery Card ───────────────── */
   activeCard: {
@@ -1635,7 +2113,9 @@ const st = StyleSheet.create({
     gap: 10,
   },
   quickActionOuter: {
-    width: (width - spacing.md * 2 - 20) / 3,
+    // Math.floor + 4px slack: RN rounds sub-pixel widths UP, which can push
+    // 3 items + 2 gaps over the parent's inner width by ~1px and wrap to 2 cols.
+    width: Math.floor((width - spacing.md * 2 - 24) / 3),
   },
   quickAction: {
     paddingVertical: 16,
