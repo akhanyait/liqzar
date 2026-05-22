@@ -29,6 +29,7 @@ import { toast } from "@/hooks/use-toast";
 import { useBackInStock } from "@/hooks/useBackInStock";
 import { BellRing, BellOff } from "lucide-react";
 import ArPreviewButton from "@/components/ArPreviewButton";
+import { SEO, productJsonLd, breadcrumbJsonLd } from "@/components/seo/SEO";
 
 type ScarcityTier = Exclude<StockTier, "available">;
 
@@ -127,8 +128,42 @@ const ProductDetail = () => {
     ? buildPlaceholderImageUrl(product.name, product.category)
     : getProductImageUrl(product);
 
+  const seoTitle = `${product.name}${product.category ? ` — ${product.category}` : ""}`;
+  const seoDescription = product.description
+    ? product.description.slice(0, 160)
+    : `Buy ${product.name} online in South Africa. Premium ${product.category || "spirits"} delivered in 2-4 hours across Johannesburg by LIQZAR.`;
+
   return (
     <div className="pb-28">
+      <SEO
+        title={seoTitle}
+        description={seoDescription}
+        path={`/product/${product.id}`}
+        image={imageUrl}
+        structuredData={[
+          productJsonLd({
+            id: product.id,
+            name: product.name,
+            description: product.description ?? undefined,
+            price: product.price,
+            image: imageUrl,
+            brand: (product as any).brand ?? undefined,
+            category: product.category,
+            inStock: product.in_stock !== false,
+            sku: product.id,
+            barcode: (product as any).barcode ?? null,
+          }),
+          breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "Catalogue", path: "/catalogue" },
+            ...(product.category
+              ? [{ name: product.category, path: `/catalogue?category=${encodeURIComponent(product.category)}` }]
+              : []),
+            { name: product.name, path: `/product/${product.id}` },
+          ]),
+        ]}
+      />
+
       {/* Top bar */}
       <div className="container px-4 py-3 flex items-center justify-between">
         <button

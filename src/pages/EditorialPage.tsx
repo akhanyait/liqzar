@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, BookOpen, Clock } from "lucide-react";
 import { EDITORIAL_ARTICLES } from "@/data/editorial";
 import BackButton from "@/components/BackButton";
+import { SEO } from "@/components/seo/SEO";
 
 /**
  * EditorialPage — story-led content hub for premium customers.
@@ -14,6 +15,13 @@ const EditorialPage = () => {
 
   return (
     <div className="pb-28 bg-background overflow-x-hidden">
+      <SEO
+        title="The LIQZAR Journal — Whisky, Wine & Spirits Editorial"
+        description="Long-form journalism for premium spirits collectors. Reviews, tasting notes, history, and culture of whisky, wine, champagne, and rare bottles in South Africa."
+        path="/editorial"
+        keywords="whisky reviews South Africa, wine editorial, spirits journalism, premium liquor magazine, LIQZAR Journal"
+      />
+
       {/* Hero header — editorial kicker */}
       <section className="relative overflow-hidden border-b border-border/60">
         <div className="container px-4 py-10 md:py-14">

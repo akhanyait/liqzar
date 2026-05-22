@@ -60,6 +60,7 @@ import { useCustomerOrders } from "@/hooks/useOrders";
 import { useAuth } from "@/context/AuthContext";
 import { initiatePaymentWithOrder, OrderDataForPayment } from "@/lib/payment-gateway";
 import { supabase } from "@/integrations/supabase/client";
+import { SEO } from "@/components/seo/SEO";
 
 /* ── Types ── */
 interface Address {
@@ -1054,6 +1055,7 @@ const CheckoutPage = () => {
 
   return (
     <div className="pb-28 overflow-x-hidden">
+      <SEO title="Checkout" path="/checkout" noindex description="Secure checkout — LIQZAR" />
       {/* ── Header ── */}
       <div className="sticky top-0 z-30 glass-card border-b border-glass-border px-4 py-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)]">
         <div className="flex items-center gap-3 mb-3">

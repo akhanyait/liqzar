@@ -6,6 +6,7 @@ import {
   getEditorialBySlug,
   getRelatedEditorial,
 } from "@/data/editorial";
+import { SEO, articleJsonLd } from "@/components/seo/SEO";
 
 /**
  * EditorialArticle — long-form detail view.
@@ -29,6 +30,27 @@ const EditorialArticle = () => {
 
   return (
     <article className="pb-28 bg-background overflow-x-hidden">
+      <SEO
+        title={article.title}
+        description={article.excerpt || article.title}
+        path={`/editorial/${article.slug}`}
+        image={article.heroImage}
+        article={{
+          publishedTime: article.publishedAt,
+          author: (article as any).author,
+          section: (article as any).category,
+          tags: (article as any).tags,
+        }}
+        structuredData={articleJsonLd({
+          headline: article.title,
+          description: article.excerpt,
+          image: article.heroImage,
+          datePublished: article.publishedAt,
+          slug: article.slug,
+          author: (article as any).author,
+        })}
+      />
+
       {/* Hero */}
       <header className="relative">
         <div className="relative h-[44vh] min-h-[340px] md:h-[60vh] md:min-h-[460px] overflow-hidden">

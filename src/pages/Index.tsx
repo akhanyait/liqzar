@@ -38,6 +38,7 @@ import ShakeToDiscover from "@/components/native/ShakeToDiscover";
 import VoiceSearch from "@/components/native/VoiceSearch";
 import { isNativeApp, useHaptics } from "@/hooks/useNativeFeatures";
 import { toast } from "@/hooks/use-toast";
+import { SEO } from "@/components/seo/SEO";
 
 /* ── Hero slides — celebrating South Africa's connoisseurs ──
    Image URLs are Unsplash photo IDs known to resolve; each <img> below also
@@ -279,6 +280,13 @@ export default function Index() {
       onRefresh={handleRefresh}
       className="pb-28 overflow-x-hidden max-w-full"
     >
+      <SEO
+        titleAsIs
+        path="/"
+        description="South Africa's premium liquor delivery service. Curated whisky, wine, champagne, and rare spirits delivered in 2-4 hours across Johannesburg & Gauteng. Discreet, secure, age-verified."
+        image="/hero/hero-lounge-executive.jpg"
+      />
+
       {/* ── Voice Search Modal ── */}
       <VoiceSearch
         isOpen={showVoiceSearch}

@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCart } from "@/context/CartContext";
 import { useHaptics } from "@/hooks/useNativeFeatures";
 import CatalogueProductCard from "@/components/CatalogueProductCard";
+import { SEO, collectionJsonLd } from "@/components/seo/SEO";
 
 const SORT_OPTIONS = [
   { label: "Recommended", value: "recommended" },
@@ -61,6 +62,18 @@ const CataloguePage = () => {
 
   return (
     <div className="min-h-screen bg-white pb-24">
+      <SEO
+        title="Premium Liquor Catalogue"
+        description="Browse over 4,000 premium spirits — whisky, wine, champagne, vodka, gin, brandy and rare collectibles. Free delivery over R150. 2-4 hour delivery across Johannesburg."
+        path="/catalogue"
+        structuredData={collectionJsonLd({
+          name: "LIQZAR Premium Liquor Catalogue",
+          description: "Curated whisky, wine, champagne, and rare spirits delivered across Johannesburg.",
+          path: "/catalogue",
+          itemCount: allProducts.length,
+        })}
+      />
+
       {/* Clean Header */}
       <div className="sticky top-0 z-50 bg-white">
         {/* Search Bar */}

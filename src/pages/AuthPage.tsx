@@ -26,6 +26,7 @@ import { useSupabaseHealth } from "@/hooks/useSupabaseHealth";
 import { useBiometricAuth } from "@/hooks/useBiometricAuth";
 import { PinPad, PinSetupFlow, isPinSet } from "@/components/native/PinAuth";
 import { BiometryType } from "@/hooks/useBiometricAuth";
+import { SEO } from "@/components/seo/SEO";
 
 const ROLE_HOME: Record<AppRole, string> = {
   admin: "/admin",
@@ -345,6 +346,7 @@ const AuthPage = () => {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4 py-10">
+      <SEO title="Sign In" path="/auth" noindex description="Sign in to LIQZAR" />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
