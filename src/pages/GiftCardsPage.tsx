@@ -23,7 +23,7 @@ const GIFT_THEMES = [
   {
     id: "thankyou",
     label: "💐 Thank You",
-    color: "from-amber-500 to-orange-500",
+    color: "from-amber-500 to-amber-500",
   },
   { id: "holiday", label: "🎄 Holiday", color: "from-red-600 to-green-600" },
 ];

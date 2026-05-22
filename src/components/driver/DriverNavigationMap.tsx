@@ -338,7 +338,7 @@ const DriverNavigationMap = ({
               </p>
               <p className="text-xl font-bold text-foreground">{eta}</p>
               {trafficDelay > 0 && (
-                <p className="text-[10px] text-orange-500 font-medium">
+                <p className="text-[10px] text-amber-500 font-medium">
                   +{trafficDelay} min traffic
                 </p>
               )}

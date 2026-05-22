@@ -52,7 +52,7 @@ const MobileOnlyFeatures = ({
       icon: MapPin,
       label: "Nearby",
       subLabel: "Stores near you",
-      color: "from-orange-500 to-orange-600",
+      color: "from-amber-500 to-amber-600",
       onClick: onNearbyStores,
     },
     {
@@ -356,7 +356,7 @@ export const NearYouSection = ({ onClose }: { onClose: () => void }) => {
                     className={
                       store.status === "Open"
                         ? "text-green-500"
-                        : "text-orange-500"
+                        : "text-amber-500"
                     }
                   >
                     {store.status}

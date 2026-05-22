@@ -728,6 +728,43 @@ const CheckoutPage = () => {
       return;
     }
 
+    // Live stock re-check — prevents charging the customer for items that
+    // went out of stock while they were filling in checkout details.
+    try {
+      const productIds = items.map(({ product }) => product.id);
+      const { data: liveProducts, error: stockError } = await supabase
+        .from("products")
+        .select("id, name, in_stock, stock_quantity")
+        .in("id", productIds);
+
+      if (stockError) throw stockError;
+
+      const liveMap = new Map((liveProducts ?? []).map((p) => [p.id, p]));
+      const issues: string[] = [];
+      for (const { product, quantity } of items) {
+        const live = liveMap.get(product.id);
+        if (!live || !live.in_stock) {
+          issues.push(`${product.name} is no longer available`);
+        } else if (typeof live.stock_quantity === "number" && live.stock_quantity < quantity) {
+          issues.push(`${product.name}: only ${live.stock_quantity} left (you have ${quantity})`);
+        }
+      }
+
+      if (issues.length > 0) {
+        toast({
+          title: "Stock changed — please review your cart",
+          description: issues.slice(0, 3).join(" · "),
+          variant: "destructive",
+        });
+        navigate("/cart");
+        return;
+      }
+    } catch (err) {
+      console.error("[Checkout] Stock re-check failed:", err);
+      // Non-blocking: if Supabase is unreachable, let the order attempt proceed.
+      // The server-side createOrder + payment EF will be the final authority.
+    }
+
     setIsPlacingOrder(true);
 
     const orderItems = items.map(({ product, quantity }) => ({

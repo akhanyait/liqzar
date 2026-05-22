@@ -308,8 +308,8 @@ export const getNotificationStyle = (type: DeliveryNotificationType) => {
       icon: "🏪",
     },
     order_loaded: {
-      color: "text-orange-600",
-      bgColor: "bg-orange-100",
+      color: "text-amber-600",
+      bgColor: "bg-amber-100",
       icon: "📦",
     },
     driver_en_route: {

@@ -221,7 +221,7 @@ const statusColors = {
   pending: "bg-amber-500",
   picking: "bg-blue-500",
   picked: "bg-purple-500",
-  en_route: "bg-orange-500",
+  en_route: "bg-amber-500",
   arrived: "bg-teal-500",
   delivering: "bg-green-500",
   delivered: "bg-gray-500",
@@ -814,7 +814,7 @@ const DriverActiveUber = () => {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="px-4 py-2 flex gap-2 overflow-x-auto scrollbar-hide bg-gradient-to-r from-amber-500/10 to-orange-500/10"
+              className="px-4 py-2 flex gap-2 overflow-x-auto scrollbar-hide bg-gradient-to-r from-amber-500/10 to-amber-500/10"
             >
               {insights.slice(0, 3).map((insight) => (
                 <motion.div
@@ -954,7 +954,7 @@ const DriverActiveUber = () => {
                   {/* Full Address */}
                   <div className="p-4">
                     <div className="flex items-start gap-3">
-                      <MapPin className="w-5 h-5 text-orange-500 mt-0.5 flex-shrink-0" />
+                      <MapPin className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
                       <div className="flex-1">
                         <p className="font-bold text-foreground">
                           {activeDelivery.address}

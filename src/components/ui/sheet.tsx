@@ -73,7 +73,7 @@ const SheetContent = React.forwardRef<
         <SheetPrimitive.Title className="sr-only">Sheet</SheetPrimitive.Title>
         {children}
         {!hideCloseButton && (
-          <SheetPrimitive.Close className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] rounded-sm opacity-70 ring-offset-background transition-opacity data-[state=open]:bg-secondary hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+          <SheetPrimitive.Close className="absolute right-2 top-[calc(env(safe-area-inset-top,0px)+0.5rem)] h-11 w-11 inline-flex items-center justify-center rounded-md opacity-70 ring-offset-background transition-opacity data-[state=open]:bg-secondary hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
             <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
           </SheetPrimitive.Close>

@@ -694,7 +694,7 @@ const DriverScanItems = () => {
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="relative">
                       {/* Orange Dashed Border */}
-                      <div className="w-80 h-48 border-4 border-dashed border-orange-500 rounded-2xl relative">
+                      <div className="w-80 h-48 border-4 border-dashed border-amber-500 rounded-2xl relative">
                         {/* Red Center Line */}
                         <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-600 transform -translate-y-1/2" />
                         {/* Focus Corners */}

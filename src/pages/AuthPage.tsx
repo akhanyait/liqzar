@@ -47,6 +47,7 @@ const AuthPage = () => {
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [otpRequested, setOtpRequested] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [devLoginRole, setDevLoginRole] = useState<string | null>(null);
   const [view, setView] = useState<AuthView>("quick-login");
@@ -91,6 +92,13 @@ const AuthPage = () => {
       setView("phone-login");
     }
   }, [hasQuickLogin]);
+
+  // OTP resend cooldown tick
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
 
   useEffect(() => {
     if (!user || !role) return;
@@ -143,11 +151,12 @@ const AuthPage = () => {
     }
 
     setOtpRequested(true);
+    setResendCooldown(30);
     toast({
       title: "OTP sent",
       description:
         loginMode === "email"
-          ? "Check your email inbox (and spam) for the 6-digit code."
+          ? "Check your email inbox (and spam) for the 8-digit code."
           : IS_DEV
             ? "DEV MODE: Use 123456 as the OTP."
             : "Check your SMS for the OTP.",
@@ -476,17 +485,20 @@ const AuthPage = () => {
             type="button"
             disabled={
               submitting ||
+              (otpRequested && resendCooldown > 0) ||
               (loginMode === "phone"
                 ? normalisedPhone.length < 10
                 : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
             }
             onClick={handleRequestOtp}
-            className="w-full h-12 rounded-xl bg-secondary text-foreground hover:bg-secondary/80 text-base font-semibold"
+            className="w-full h-12 rounded-xl bg-secondary text-foreground hover:bg-secondary/80 text-base font-semibold disabled:opacity-50"
           >
             {submitting && !otpRequested
               ? "Please wait..."
               : otpRequested
-                ? "Resend OTP"
+                ? resendCooldown > 0
+                  ? `Resend OTP in ${resendCooldown}s`
+                  : "Resend OTP"
                 : "Send OTP"}
           </Button>
 

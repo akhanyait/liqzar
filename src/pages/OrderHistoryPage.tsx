@@ -80,12 +80,12 @@ const statusConfig: Record<
   },
   picked_up: {
     label: "Picked Up",
-    color: "text-orange-600 bg-orange-50",
+    color: "text-amber-600 bg-amber-50",
     icon: Truck,
   },
   en_route: {
     label: "En Route",
-    color: "text-orange-600 bg-orange-50",
+    color: "text-amber-600 bg-amber-50",
     icon: Truck,
   },
 };

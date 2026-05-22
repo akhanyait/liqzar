@@ -45,7 +45,7 @@ const bgMap: Record<string, string> = {
   order: "bg-blue-500/15 text-blue-500",
   delivery: "bg-emerald-500/15 text-emerald-500",
   promo: "bg-purple-500/15 text-purple-500",
-  alert: "bg-orange-500/15 text-orange-500",
+  alert: "bg-amber-500/15 text-amber-500",
   success: "bg-green-500/15 text-green-500",
   promotion: "bg-pink-500/15 text-pink-500",
   ai: "bg-primary/15 text-primary",
@@ -173,9 +173,9 @@ const PermissionBanner = ({
 }) => {
   if (status === "denied") {
     return (
-      <div className="flex items-start gap-3 p-4 rounded-2xl bg-orange-500/10 border border-orange-500/20 mb-4">
+      <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-4">
         <BellOff
-          className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5"
+          className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5"
           strokeWidth={1.75}
         />
         <div className="flex-1 min-w-0">

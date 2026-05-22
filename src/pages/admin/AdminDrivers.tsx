@@ -64,7 +64,7 @@ function driverStatus(d: FleetDriver): DriverStatus {
 }
 
 const statusStyles: Record<DriverStatus, string> = {
-  "On Delivery": "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-400",
+  "On Delivery": "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
   "Available": "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400",
   "Pending Verification": "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
 };
@@ -443,7 +443,7 @@ const AdminDrivers = () => {
         {[
           { label: "Total Drivers", value: drivers.length, icon: Users, color: "text-primary" },
           { label: "Active", value: activeCount, icon: CheckCircle2, color: "text-green-600" },
-          { label: "In Transit", value: inTransit, icon: Truck, color: "text-orange-500" },
+          { label: "In Transit", value: inTransit, icon: Truck, color: "text-amber-500" },
           { label: "Pending Verify", value: pending, icon: ShieldAlert, color: "text-amber-600" },
         ].map((s) => (
           <div key={s.label} className="bg-card border border-border rounded-2xl p-4">

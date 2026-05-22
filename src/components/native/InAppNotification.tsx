@@ -38,7 +38,7 @@ const colorMap = {
   order: "bg-blue-500",
   delivery: "bg-green-500",
   promo: "bg-purple-500",
-  alert: "bg-orange-500",
+  alert: "bg-amber-500",
   success: "bg-emerald-500",
 };
 

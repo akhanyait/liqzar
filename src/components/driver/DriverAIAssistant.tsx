@@ -218,7 +218,7 @@ const DriverAIAssistant = () => {
       case "opportunity":
         return <Zap className="w-4 h-4 text-yellow-500" />;
       case "warning":
-        return <AlertTriangle className="w-4 h-4 text-orange-500" />;
+        return <AlertTriangle className="w-4 h-4 text-amber-500" />;
       case "achievement":
         return <Star className="w-4 h-4 text-green-500" />;
       default:

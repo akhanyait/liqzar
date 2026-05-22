@@ -89,7 +89,7 @@ const DriveScreen = () => {
       name: "Fastest Route",
       time: "12 min",
       distance: "3.2 km",
-      color: "#FF6B00",
+      color: "#D97706",
     },
     {
       id: "shortest" as const,
@@ -600,11 +600,11 @@ const DriveScreen = () => {
               <motion.div
                 animate={{ scale: [1, 1.1, 1] }}
                 transition={{ repeat: Infinity, duration: 1.5 }}
-                className="w-12 h-12 bg-orange-600 rounded-full flex items-center justify-center shadow-lg border-4 border-white"
+                className="w-12 h-12 bg-amber-600 rounded-full flex items-center justify-center shadow-lg border-4 border-white"
               >
                 <MapPin className="w-6 h-6 text-white fill-white" />
               </motion.div>
-              <div className="mt-1 px-2 py-0.5 bg-orange-600 text-white text-[10px] font-bold rounded-full shadow whitespace-nowrap">
+              <div className="mt-1 px-2 py-0.5 bg-amber-600 text-white text-[10px] font-bold rounded-full shadow whitespace-nowrap">
                 {navData.customer}
               </div>
             </div>

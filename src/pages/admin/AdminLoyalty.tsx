@@ -1,7 +1,7 @@
 import { Gift, Crown, Star, Users } from "lucide-react";
 
 const tiers = [
-  { name: "Bronze", min: 0, max: 999, members: 45, color: "bg-orange-100 text-orange-700" },
+  { name: "Bronze", min: 0, max: 999, members: 45, color: "bg-amber-100 text-amber-700" },
   { name: "Silver", min: 1000, max: 4999, members: 28, color: "bg-gray-100 text-gray-700" },
   { name: "Gold", min: 5000, max: 14999, members: 16, color: "bg-yellow-100 text-yellow-700" },
   { name: "Platinum", min: 15000, max: null, members: 8, color: "bg-purple-100 text-purple-700" },

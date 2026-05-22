@@ -93,7 +93,7 @@ const pipelineSteps = [
 const statusColors: Record<string, string> = {
   "Pending Pickup": "bg-yellow-100 text-yellow-700",
   "Picked Up": "bg-blue-100 text-blue-700",
-  "En Route": "bg-orange-100 text-orange-700",
+  "En Route": "bg-amber-100 text-amber-700",
   Arrived: "bg-purple-100 text-purple-700",
   Delivered: "bg-green-100 text-green-700",
 };
@@ -408,7 +408,7 @@ const DriverActive = () => {
                         <span className="text-muted-foreground">
                           Traffic delay
                         </span>
-                        <span className="font-medium text-orange-600">
+                        <span className="font-medium text-amber-600">
                           {d.smartEta.traffic}
                         </span>
                       </div>

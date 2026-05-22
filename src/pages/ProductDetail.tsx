@@ -133,17 +133,17 @@ const ProductDetail = () => {
       <div className="container px-4 py-3 flex items-center justify-between">
         <button
           onClick={() => navigate(-1)}
-          className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-muted transition-colors"
+          className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center hover:bg-muted transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
         <div className="flex gap-2">
-          <button className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-muted transition-colors">
+          <button aria-label="Share product" className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center hover:bg-muted transition-colors">
             <Share2 className="w-4 h-4 text-foreground" />
           </button>
           <button
             onClick={toggleWishlist}
-            className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-muted transition-colors"
+            className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center hover:bg-muted transition-colors"
           >
             <Heart
               className={`w-5 h-5 transition-colors ${liked ? "fill-primary text-primary" : "text-foreground"}`}

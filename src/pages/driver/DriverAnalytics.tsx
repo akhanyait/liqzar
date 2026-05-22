@@ -48,14 +48,14 @@ const DriverAnalytics = () => (
         { label: "This Week", value: "R 6,880", sub: "+18%", icon: DollarSign, color: "text-green-600" },
         { label: "Deliveries", value: "86", sub: "+32%", icon: Truck, color: "text-blue-500" },
         { label: "Avg Rating", value: "4.9", sub: "Top 5%", icon: Star, color: "text-yellow-500" },
-        { label: "On-Time", value: "94%", sub: "-1% target", icon: Clock, color: "text-orange-500" },
+        { label: "On-Time", value: "94%", sub: "-1% target", icon: Clock, color: "text-amber-500" },
       ].map((s, i) => (
         <motion.div key={s.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
           className="bg-card border border-border rounded-2xl p-4">
           <s.icon className={`w-4 h-4 ${s.color} mb-1.5`} />
           <p className="text-lg font-bold text-foreground">{s.value}</p>
           <p className="text-[10px] text-muted-foreground">{s.label}</p>
-          <p className={`text-[10px] font-bold mt-0.5 ${s.sub.startsWith("+") || s.sub.startsWith("Top") ? "text-green-600" : "text-orange-500"}`}>{s.sub}</p>
+          <p className={`text-[10px] font-bold mt-0.5 ${s.sub.startsWith("+") || s.sub.startsWith("Top") ? "text-green-600" : "text-amber-500"}`}>{s.sub}</p>
         </motion.div>
       ))}
     </div>
@@ -164,7 +164,7 @@ const DriverAnalytics = () => (
               <div key={m.label}>
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-muted-foreground flex items-center gap-1"><m.icon className="w-3 h-3" /> {m.label}</span>
-                  <span className={`font-bold ${isGood ? "text-green-600" : "text-orange-500"}`}>
+                  <span className={`font-bold ${isGood ? "text-green-600" : "text-amber-500"}`}>
                     {m.value}{m.unit} <span className="text-muted-foreground font-normal">(target: {m.target}{m.unit})</span>
                   </span>
                 </div>
