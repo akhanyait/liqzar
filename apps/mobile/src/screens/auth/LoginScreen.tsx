@@ -42,17 +42,22 @@ const ROLE_DESCRIPTIONS: Record<string, string> = {
 
 export default function LoginScreen() {
   const navigation = useNavigation<any>();
-  const { signInWithPhone } = useAuth();
+  const { signInWithPhone, signInWithEmail } = useAuth();
   const { colors, gradients, shadows, isDark, toggleTheme } = useTheme();
 
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [phoneFocused, setPhoneFocused] = useState(false);
   const [otpFocused, setOtpFocused] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
+  // Channel toggle — phone (SMS OTP) or email (inbox OTP). Switching clears
+  // the OTP state so the user gets a fresh request on the other channel.
+  const [loginMode, setLoginMode] = useState<"phone" | "email">("phone");
 
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(50)).current;
@@ -130,20 +135,39 @@ export default function LoginScreen() {
   };
 
   const handleSendOtp = async () => {
-    if (phone.length < 10) {
-      setError("Please enter a valid 10-digit phone number.");
-      return;
-    }
     setLoading(true);
     setError("");
     try {
-      // In DEV mode with a known test number, skip the real SMS
-      if (__DEV__ && TEST_USERS.some((u) => u.phone.replace(/\D/g, "") === phone.replace(/\D/g, ""))) {
+      if (loginMode === "email") {
+        const trimmed = email.trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+          setError("Please enter a valid email address.");
+          return;
+        }
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          email: trimmed,
+          options: { shouldCreateUser: true },
+        });
+        if (otpError) throw otpError;
+        setOtpSent(true);
+        return;
+      }
+
+      if (phone.length < 10) {
+        setError("Please enter a valid 10-digit phone number.");
+        return;
+      }
+      const normalized = phone.replace(/\D/g, "");
+      // Production-baked bypass for App Review: skip the real SMS for the
+      // baked demo numbers (matching TEST_CREDENTIALS keys in AuthContext).
+      // Reviewers enter `123456` on the OTP screen; signInWithPhone() then
+      // auths via the seeded test-user email/password.
+      const DEMO_PHONES = ["0790771591", "0621532030", "0790771567"];
+      if (DEMO_PHONES.includes(normalized)) {
         setOtpSent(true);
         return;
       }
       // Real Supabase OTP — normalize to E.164 international format
-      const normalized = phone.replace(/\D/g, "");
       const e164 = normalized.startsWith("27") ? `+${normalized}` : `+27${normalized.replace(/^0/, "")}`;
       const { error: otpError } = await supabase.auth.signInWithOtp({ phone: e164 });
       if (otpError) throw otpError;
@@ -156,14 +180,19 @@ export default function LoginScreen() {
   };
 
   const handleVerify = async () => {
-    if (otp.length < 6) {
-      setError("Please enter the 6-digit OTP.");
+    const expectedLen = loginMode === "email" ? 8 : 6;
+    if (otp.length < expectedLen) {
+      setError(`Please enter the ${expectedLen}-digit code.`);
       return;
     }
     setLoading(true);
     setError("");
     try {
-      await signInWithPhone(phone, otp);
+      if (loginMode === "email") {
+        await signInWithEmail(email, otp);
+      } else {
+        await signInWithPhone(phone, otp);
+      }
     } catch (err: any) {
       setError(err.message || "Verification failed.");
     } finally {
@@ -196,14 +225,16 @@ export default function LoginScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background.primary }}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
         style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
+          automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
         >
           {/* Hero Banner with People */}
           <View style={st.heroBanner}>
@@ -328,8 +359,50 @@ export default function LoginScreen() {
               </View>
             ) : null}
 
-            {/* Phone input */}
+            {/* Channel toggle — phone (SMS) vs email (inbox OTP) */}
             {!otpSent && (
+              <View style={st.channelToggleWrap}>
+                <View
+                  style={[
+                    st.channelToggle,
+                    { backgroundColor: colors.background.secondary, borderColor: colors.gold.border },
+                  ]}
+                >
+                  {(["phone", "email"] as const).map((mode) => (
+                    <TouchableOpacity
+                      key={mode}
+                      onPress={() => {
+                        setLoginMode(mode);
+                        setOtp("");
+                        setError("");
+                      }}
+                      activeOpacity={0.7}
+                      style={[
+                        st.channelChip,
+                        loginMode === mode && { backgroundColor: colors.gold.primary },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          st.channelChipText,
+                          {
+                            color:
+                              loginMode === mode
+                                ? colors.background.primary
+                                : colors.text.muted,
+                          },
+                        ]}
+                      >
+                        {mode === "phone" ? "Phone" : "Email"}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Phone input */}
+            {!otpSent && loginMode === "phone" && (
               <View style={st.inputWrap}>
                 <Text style={[st.label, { color: colors.gold.muted }]}>
                   PHONE NUMBER
@@ -377,6 +450,48 @@ export default function LoginScreen() {
               </View>
             )}
 
+            {/* Email input */}
+            {!otpSent && loginMode === "email" && (
+              <View style={st.inputWrap}>
+                <Text style={[st.label, { color: colors.gold.muted }]}>
+                  EMAIL ADDRESS
+                </Text>
+                <View
+                  style={[
+                    st.phoneRow,
+                    {
+                      backgroundColor: colors.background.secondary,
+                      borderColor: emailFocused
+                        ? colors.gold.primary
+                        : colors.gold.border,
+                    },
+                    emailFocused && {
+                      shadowColor: colors.gold.primary,
+                      shadowOffset: { width: 0, height: 0 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 8,
+                      elevation: 4,
+                    },
+                  ]}
+                >
+                  <TextInput
+                    style={[st.phoneIn, { color: colors.text.primary, paddingLeft: 16 }]}
+                    placeholder="you@example.com"
+                    placeholderTextColor={colors.text.dim}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="email"
+                    value={email}
+                    onChangeText={setEmail}
+                    onFocus={() => setEmailFocused(true)}
+                    onBlur={() => setEmailFocused(false)}
+                    selectionColor={colors.gold.primary}
+                  />
+                </View>
+              </View>
+            )}
+
             {/* OTP input */}
             {otpSent && (
               <View style={st.inputWrap}>
@@ -406,14 +521,15 @@ export default function LoginScreen() {
                   keyboardType="number-pad"
                   value={otp}
                   onChangeText={(t) => {
-                    if (t.length <= 6) {
+                    const max = loginMode === "email" ? 8 : 6;
+                    if (t.length <= max) {
                       setOtp(t.replace(/\D/g, ""));
                       setError("");
                     }
                   }}
                   onFocus={() => setOtpFocused(true)}
                   onBlur={() => setOtpFocused(false)}
-                  maxLength={6}
+                  maxLength={loginMode === "email" ? 8 : 6}
                   autoFocus
                 />
               </View>
@@ -452,7 +568,7 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </Animated.View>
 
-            {/* Back to phone */}
+            {/* Back to phone/email */}
             {otpSent && (
               <TouchableOpacity
                 onPress={() => {
@@ -465,7 +581,7 @@ export default function LoginScreen() {
               >
                 <Icon name="arrow-back" size={16} color={colors.gold.muted} />
                 <Text style={{ color: colors.gold.muted, fontSize: 14 }}>
-                  Change number
+                  {loginMode === "email" ? "Change email" : "Change number"}
                 </Text>
               </TouchableOpacity>
             )}
@@ -685,10 +801,10 @@ const st = StyleSheet.create({
   },
   formSection: {
     marginTop: -16,
-    borderTopLeftRadius: borderRadius.full,
-    borderTopRightRadius: borderRadius.full,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
+    paddingTop: spacing.xl + 8,
     paddingBottom: spacing.md,
     position: "relative",
     overflow: "hidden",
@@ -699,8 +815,8 @@ const st = StyleSheet.create({
     left: 0,
     right: 0,
     height: 12,
-    borderTopLeftRadius: borderRadius.full,
-    borderTopRightRadius: borderRadius.full,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
   },
   heading: {
     fontSize: 24,
@@ -719,6 +835,25 @@ const st = StyleSheet.create({
   },
   inputWrap: {
     marginBottom: 16,
+  },
+  channelToggleWrap: { marginBottom: 14 },
+  channelToggle: {
+    flexDirection: "row",
+    padding: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 4,
+  },
+  channelChip: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 9,
+  },
+  channelChipText: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.4,
   },
   label: {
     fontSize: 11,

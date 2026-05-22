@@ -22,6 +22,9 @@ interface AuthContextType {
   loading: boolean;
   sendOtp: (phone: string) => Promise<{ error: Error | null }>;
   verifyOtp: (phone: string, otp: string) => Promise<{ error: Error | null }>;
+  /** Email-based OTP variant — for customers who prefer email over SMS. */
+  sendEmailOtp: (email: string) => Promise<{ error: Error | null }>;
+  verifyEmailOtp: (email: string, otp: string) => Promise<{ error: Error | null }>;
   devAutoLogin: (phone: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
@@ -369,6 +372,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   /**
+   * Send email OTP — Supabase auth.signInWithOtp with `email` instead of phone.
+   * Supabase emails a 6-digit code (template configured in Dashboard → Auth →
+   * Email Templates → Magic Link / OTP). Default mailer is rate-limited to
+   * 3/hour — configure custom SMTP in Supabase Dashboard for production volume.
+   * `shouldCreateUser: true` lets new email customers sign up + sign in in
+   * one flow without a separate signup step.
+   */
+  const sendEmailOtp = async (
+    email: string,
+  ): Promise<{ error: Error | null }> => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      return { error: new Error("Please enter a valid email address.") };
+    }
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: trimmed,
+        options: { shouldCreateUser: true },
+      });
+      if (error) return { error: new Error(error.message) };
+      return { error: null };
+    } catch (e: any) {
+      return {
+        error: new Error(e?.message ?? "Could not send email OTP. Try again."),
+      };
+    }
+  };
+
+  /**
+   * Verify the 6-digit code Supabase emailed. type:"email" is the magic-link/
+   * email-OTP variant (vs "sms" for phone). On success Supabase sets the
+   * session via onAuthStateChange so user/role re-hydrate automatically.
+   */
+  const verifyEmailOtp = async (
+    email: string,
+    otp: string,
+  ): Promise<{ error: Error | null }> => {
+    const trimmed = email.trim().toLowerCase();
+    if (!otp || otp.length < 6) {
+      return { error: new Error("Enter the 6-digit code from your email.") };
+    }
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: trimmed,
+        token: otp.trim(),
+        type: "email",
+      });
+      if (error) return { error: new Error(error.message) };
+      return { error: null };
+    } catch (e: any) {
+      return {
+        error: new Error(e?.message ?? "Verification failed. Try again."),
+      };
+    }
+  };
+
+  /**
    * DEV-ONLY: Bypass OTP entirely. Seed test users if needed, then sign in.
    * Used by the quick-login buttons on the auth page for testing.
    */
@@ -443,7 +503,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <AuthContext.Provider
-      value={{ user, session, role, loading, sendOtp, verifyOtp, devAutoLogin, signOut }}
+      value={{
+        user,
+        session,
+        role,
+        loading,
+        sendOtp,
+        verifyOtp,
+        sendEmailOtp,
+        verifyEmailOtp,
+        devAutoLogin,
+        signOut,
+      }}
     >
       {children}
     </AuthContext.Provider>

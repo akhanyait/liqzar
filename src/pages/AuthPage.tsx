@@ -44,13 +44,26 @@ type AuthView = "quick-login" | "phone-login" | "pin-setup";
 
 const AuthPage = () => {
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [otpRequested, setOtpRequested] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [devLoginRole, setDevLoginRole] = useState<string | null>(null);
   const [view, setView] = useState<AuthView>("quick-login");
+  // Login channel — phone (SMS OTP) or email (email OTP). Switching resets
+  // the OTP-requested flag so the user can retry on the other channel.
+  const [loginMode, setLoginMode] = useState<"phone" | "email">("phone");
   const [showPinSetup, setShowPinSetup] = useState(false);
-  const { sendOtp, verifyOtp, devAutoLogin, signOut, user, role } = useAuth();
+  const {
+    sendOtp,
+    verifyOtp,
+    sendEmailOtp,
+    verifyEmailOtp,
+    devAutoLogin,
+    signOut,
+    user,
+    role,
+  } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { isLoading, isError, error, isSuccess, refetch } = useSupabaseHealth();
@@ -114,7 +127,10 @@ const AuthPage = () => {
 
   const handleRequestOtp = async () => {
     setSubmitting(true);
-    const { error } = await sendOtp(normalisedPhone);
+    const { error } =
+      loginMode === "email"
+        ? await sendEmailOtp(email)
+        : await sendOtp(normalisedPhone);
     setSubmitting(false);
 
     if (error) {
@@ -129,16 +145,22 @@ const AuthPage = () => {
     setOtpRequested(true);
     toast({
       title: "OTP sent",
-      description: IS_DEV
-        ? "DEV MODE: Use 123456 as the OTP."
-        : "Check your SMS for the OTP.",
+      description:
+        loginMode === "email"
+          ? "Check your email inbox (and spam) for the 6-digit code."
+          : IS_DEV
+            ? "DEV MODE: Use 123456 as the OTP."
+            : "Check your SMS for the OTP.",
     });
   };
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    const { error } = await verifyOtp(normalisedPhone, otp.trim());
+    const { error } =
+      loginMode === "email"
+        ? await verifyEmailOtp(email, otp.trim())
+        : await verifyOtp(normalisedPhone, otp.trim());
     setSubmitting(false);
 
     if (error) {
@@ -353,11 +375,38 @@ const AuthPage = () => {
         </div>
 
         <h1 className="text-3xl font-bold text-foreground mb-2">
-          Login with your cell number
+          {loginMode === "email"
+            ? "Login with your email"
+            : "Login with your cell number"}
         </h1>
-        <p className="text-muted-foreground mb-8">
-          Enter your cell number to receive a one-time PIN via SMS.
+        <p className="text-muted-foreground mb-6">
+          {loginMode === "email"
+            ? "Enter your email to receive a one-time code in your inbox."
+            : "Enter your cell number to receive a one-time PIN via SMS."}
         </p>
+
+        {/* Channel toggle — phone (SMS) vs email (inbox). Switching clears the
+            requested-OTP flag so the user can request anew on the other channel. */}
+        <div className="mb-6 inline-flex p-1 rounded-xl bg-secondary w-full">
+          {(["phone", "email"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => {
+                setLoginMode(mode);
+                setOtp("");
+                setOtpRequested(false);
+              }}
+              className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                loginMode === mode
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {mode === "phone" ? "Phone (SMS)" : "Email"}
+            </button>
+          ))}
+        </div>
 
         {/* ── DEV ONLY: Instant role login ── */}
         {IS_DEV && (
@@ -389,26 +438,48 @@ const AuthPage = () => {
         )}
 
         <form onSubmit={handleVerifyOtp} className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">
-              Cell phone number
-            </label>
-            <div className="relative">
-              <Smartphone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          {loginMode === "phone" ? (
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">
+                Cell phone number
+              </label>
+              <div className="relative">
+                <Smartphone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="tel"
+                  inputMode="numeric"
+                  value={formatPhoneForDisplay(phone)}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="082 123 4567"
+                  className="h-12 rounded-xl pl-10"
+                />
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">
+                Email address
+              </label>
               <Input
-                type="tel"
-                inputMode="numeric"
-                value={formatPhoneForDisplay(phone)}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="082 123 4567"
-                className="h-12 rounded-xl pl-10"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="h-12 rounded-xl"
               />
             </div>
-          </div>
+          )}
 
           <Button
             type="button"
-            disabled={submitting || normalisedPhone.length < 10}
+            disabled={
+              submitting ||
+              (loginMode === "phone"
+                ? normalisedPhone.length < 10
+                : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+            }
             onClick={handleRequestOtp}
             className="w-full h-12 rounded-xl bg-secondary text-foreground hover:bg-secondary/80 text-base font-semibold"
           >
@@ -426,18 +497,22 @@ const AuthPage = () => {
             <Input
               value={otp}
               onChange={(e) =>
-                setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                setOtp(e.target.value.replace(/\D/g, "").slice(0, loginMode === "email" ? 8 : 6))
               }
-              placeholder="Enter 6-digit OTP"
+              placeholder={loginMode === "email" ? "Enter 8-digit code" : "Enter 6-digit OTP"}
               className="h-12 rounded-xl"
-              maxLength={6}
+              maxLength={loginMode === "email" ? 8 : 6}
             />
           </div>
 
           <Button
             type="submit"
             disabled={
-              submitting || normalisedPhone.length < 10 || otp.length !== 6
+              submitting ||
+              otp.length !== (loginMode === "email" ? 8 : 6) ||
+              (loginMode === "phone"
+                ? normalisedPhone.length < 10
+                : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
             }
             className="w-full h-12 rounded-xl text-base font-semibold border-0"
             style={{

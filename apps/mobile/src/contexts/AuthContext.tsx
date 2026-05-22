@@ -17,6 +17,10 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithPhone: (phone: string, otp: string) => Promise<void>;
+  /** Verify a 6-digit OTP that Supabase emailed to the user. Mirrors
+      signInWithPhone for the email channel. The "send" half is done
+      inline in LoginScreen via supabase.auth.signInWithOtp({ email }). */
+  signInWithEmail: (email: string, otp: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -39,10 +43,12 @@ const PHONE_ROLE_MAP: Record<string, AppRole> = __DEV__
   : {};
 
 // Test accounts — always available for bypass (visible UI list is DEV-only via TEST_USERS)
+// `label` is what we show as `full_name` in the app header after a demo sign-in.
+// Use the seeded driver_profiles/profiles names so the header doesn't say "Driver".
 const TEST_CREDENTIALS: Record<string, { email: string; password: string; role: AppRole; label: string }> = {
-  "0790771591": { email: "customer@liqzar.co.za", password: "customer123", role: "customer", label: "Customer" },
-  "0621532030": { email: "driver@liqzar.co.za", password: "driver123", role: "driver", label: "Driver" },
-  "0790771567": { email: "admin@liqzar.co.za", password: "admin123", role: "admin", label: "Back-Office Admin" },
+  "0790771591": { email: "customer@liqzar.co.za", password: "customer123", role: "customer", label: "Demo Customer" },
+  "0621532030": { email: "driver@liqzar.co.za",   password: "driver123",   role: "driver",   label: "Mandla Nkosi" },
+  "0790771567": { email: "admin@liqzar.co.za",    password: "admin123",    role: "admin",    label: "Back-Office Admin" },
 };
 
 // Test accounts for easy login (DEV only)
@@ -291,8 +297,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Real Supabase OTP verification
+    // Supabase requires E.164 format (e.g. "+27833497557"), not raw 10-digit ("0833497557").
+    const e164 = normalized.startsWith("27")
+      ? `+${normalized}`
+      : `+27${normalized.replace(/^0/, "")}`;
     const { data, error } = await supabase.auth.verifyOtp({
-      phone,
+      phone: e164,
       token: otp,
       type: "sms",
     });
@@ -310,6 +320,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         data.user.id,
         data.user.phone,
       );
+      setUser(appUser);
+      setRole(serverRole);
+      await SecureAuthStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ user: appUser, role: serverRole }),
+      );
+    }
+  };
+
+  const signInWithEmail = async (email: string, otp: string) => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      throw new Error("Please enter a valid email address.");
+    }
+    if (!otp || otp.length < 6) {
+      throw new Error("Enter the 6-digit code from your email.");
+    }
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: trimmed,
+      token: otp.trim(),
+      type: "email",
+    });
+    if (error) throw error;
+    if (data.user) {
+      const appUser: AppUser = {
+        id: data.user.id,
+        email: data.user.email,
+        phone: data.user.phone,
+        full_name: data.user.user_metadata?.full_name,
+      };
+      const serverRole = await loadRoleFromServer(data.user.id, data.user.phone);
       setUser(appUser);
       setRole(serverRole);
       await SecureAuthStorage.setItem(
@@ -364,6 +405,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         signIn,
         signInWithPhone,
+        signInWithEmail,
         signUp,
         signOut,
         resetPassword,
