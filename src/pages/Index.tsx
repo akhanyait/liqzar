@@ -51,40 +51,40 @@ const HERO_FALLBACK_IMAGE =
 
 const heroSlides = [
   {
-    title: "If You Know,",
-    highlight: "You Know.",
+    title: "The Pour That",
+    highlight: "Earned Its Place.",
     subtitle:
-      "The Macallan M, 2022 Annual Release. Presented in hand-crafted Lalique. For the collectors who moved past asking the price.",
+      "For the executives who closed the deal, signed the term sheet, made the call. Premium spirits, in 2–4 hours, to the address that matters.",
     cta: "Enter The Vault",
     link: "/catalogue?sort=trending",
-    image: "/hero/macallan-m.jpg",
+    image: "/hero/hero-lounge-executive.jpg",
   },
   {
     title: "Africa Built This.",
-    highlight: "Every Pour, A Toast.",
+    highlight: "Africa Toasts To It.",
     subtitle:
-      "For the builders, the backers, the visionaries shaping the continent's tomorrow — LIQZAR delivers the whisky worthy of the work, in 2–4 hours.",
-    cta: "Honour The Hour",
+      "The builders, the visionaries, the rainmakers — gathered around the table that changes everything. LIQZAR delivers the dram worthy of the room.",
+    cta: "Honour The Moment",
     link: "/catalogue",
-    image: "/hero/lifestyle-african-executive.jpg",
+    image: "/hero/hero-dining-toast.jpg",
   },
   {
-    title: "Fifty Years,",
-    highlight: "One Unmistakable Dram.",
+    title: "Sandton Skyline,",
+    highlight: "Glass In Hand.",
     subtitle:
-      "Glenfiddich 50 — reserved for palates that have outgrown every other toast. Available to the few who have earned the pour.",
-    cta: "Claim The Vintage",
+      "Sunset over the city you helped build. The terrace is yours. The bottle is on its way — premium delivery in 2–4 hours across Joburg.",
+    cta: "Shop The Sunset Collection",
     link: "/catalogue?sort=trending",
-    image: "/hero/glenfiddich-50.jpg",
+    image: "/hero/hero-rooftop-sunset.jpg",
   },
   {
-    title: "One Nation,",
-    highlight: "One Extraordinary Pour.",
+    title: "One Boardroom.",
+    highlight: "One Unforgettable Toast.",
     subtitle:
-      "Across every heritage, every boardroom, every triumph — South Africa's finest raise the same glass. Rarely seen. Always remembered.",
+      "When the deal is done, the pour matters. Curated whisky, champagne, and rare spirits — delivered with discretion to where the toast belongs.",
     cta: "Be Part Of The Few",
     link: "/catalogue",
-    image: "/hero/lifestyle-rainbow-nation.jpg",
+    image: "/hero/hero-boardroom-toast.jpg",
   },
 ];
 
@@ -626,6 +626,43 @@ export default function Index() {
         isLoading={loadingTrending && loadingFallback}
       />
 
+      {/* ── Premium Whisky Promo — full-width editorial banner ── */}
+      <section className="container px-4 mt-12">
+        <Link to="/catalogue?category=whisky" className="block group">
+          <div className="relative aspect-[16/9] md:aspect-[3/1] rounded-3xl overflow-hidden shadow-2xl">
+            <img
+              src="/hero/promo-premium.jpg"
+              alt="The rare single malt collection — curated premium whisky"
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/55 to-black/20" />
+            <div className="absolute inset-0 flex flex-col justify-center p-6 md:p-12 max-w-2xl">
+              <span className="text-[10px] md:text-xs uppercase tracking-[3px] text-[#D4AF37] mb-2 md:mb-3">
+                Featured · Allocated Release
+              </span>
+              <h3 className="font-display text-2xl md:text-4xl lg:text-5xl text-white mb-2 md:mb-3 leading-tight">
+                The Rare Single Malt Collection
+              </h3>
+              <p className="hidden md:block text-white/80 mb-6 max-w-md text-sm md:text-base leading-relaxed">
+                Hand-selected from Speyside, Islay, and the Highland masters. Limited bottles. Allocated to the few who know the difference.
+              </p>
+              <span
+                className="inline-flex w-fit items-center gap-2 px-5 md:px-6 py-2.5 md:py-3 rounded-xl text-sm font-semibold border-0 mt-2"
+                style={{
+                  background: "linear-gradient(135deg, #D4AF37, #B8962E, #D4AF37)",
+                  color: "#0d0b08",
+                  boxShadow: "0 4px 20px rgba(212,175,55,0.35)",
+                }}
+              >
+                Explore The Collection
+                <ArrowRight className="w-4 h-4" />
+              </span>
+            </div>
+          </div>
+        </Link>
+      </section>
+
       {/* ── Shop by Country — proudly local + global diversity ── */}
       <ShopByCountry />
 
@@ -634,6 +671,30 @@ export default function Index() {
 
       {/* ── Happy Hour Deals ── */}
       <HappyHourDeals />
+
+      {/* ── Atmospheric whisky banner — editorial mood break ── */}
+      <section className="container px-4 mt-12">
+        <div className="relative aspect-[16/9] md:aspect-[21/7] rounded-3xl overflow-hidden shadow-2xl">
+          <img
+            src="/hero/bottle-atmospheric.jpg"
+            alt="Premium whisky decanter and tumbler"
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-gradient-to-l from-black/80 via-black/30 to-transparent" />
+          <div className="absolute inset-0 flex flex-col justify-center items-end p-6 md:p-12 text-right">
+            <span className="text-[10px] md:text-xs uppercase tracking-[4px] text-[#D4AF37] mb-3">
+              Curated · Delivered · Discreet
+            </span>
+            <h3 className="font-display text-2xl md:text-4xl lg:text-5xl text-white mb-3 leading-tight max-w-md">
+              The Dram That Earns The Hour.
+            </h3>
+            <p className="hidden md:block text-white/75 max-w-sm text-sm md:text-base leading-relaxed">
+              Premium spirits. 2–4 hour delivery across Gauteng. Nothing else needs saying.
+            </p>
+          </div>
+        </div>
+      </section>
 
       {/* ── Looking For Inspiration? ── */}
       <LookingForInspiration />
