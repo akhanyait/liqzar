@@ -36,6 +36,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_driver_assigned_at
 -- React component state resets on unmount. Without this RPC the PIN screen
 -- always initialises to "3 attempts remaining / locked=false" even if the DB
 -- already has pin_attempts >= 3. This RPC lets the component hydrate from truth.
+DROP FUNCTION IF EXISTS get_pin_status CASCADE;
 CREATE OR REPLACE FUNCTION get_pin_status(p_order_id UUID)
 RETURNS JSONB AS $$
 DECLARE
@@ -71,6 +72,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- delivery_pin. A customer can retrieve their PIN hours before delivery via a
 -- direct PostgREST call, bypassing app-level timing controls.
 -- This RPC enforces: caller owns the order AND order is in an active delivery state.
+DROP FUNCTION IF EXISTS get_my_delivery_pin CASCADE;
 CREATE OR REPLACE FUNCTION get_my_delivery_pin(p_order_id UUID)
 RETURNS TEXT AS $$
 DECLARE
@@ -124,6 +126,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_delivery_active_assignment
 -- Prevents any non-service-role actor from writing payment_status='captured'
 -- directly to the orders table. The capture-payment Edge Function (service role)
 -- is the only authoritative writer.
+DROP FUNCTION IF EXISTS guard_order_payment_status CASCADE;
 CREATE OR REPLACE FUNCTION guard_order_payment_status()
 RETURNS TRIGGER AS $$
 BEGIN

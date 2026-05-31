@@ -36,6 +36,7 @@ CREATE INDEX IF NOT EXISTS products_stock_tier_idx
   WHERE stock_tier <> 'available';
 
 -- Auto-sync `low` with stock_quantity. Preserves manual tiers.
+DROP FUNCTION IF EXISTS public.sync_stock_tier_low CASCADE;
 CREATE OR REPLACE FUNCTION public.sync_stock_tier_low()
 RETURNS TRIGGER
 LANGUAGE plpgsql

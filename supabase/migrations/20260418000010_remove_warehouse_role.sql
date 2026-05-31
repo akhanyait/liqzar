@@ -124,13 +124,16 @@ BEGIN
        AND p.proname = 'has_role'
   ) THEN
     -- The function likely references app_role. Drop and recreate.
-    DROP FUNCTION IF EXISTS public.has_role(uuid, public.app_role_old);
-    DROP FUNCTION IF EXISTS public.has_role(uuid, text);
+    -- CASCADE because RLS policies across many tables depend on this function.
+    -- They'll be recreated below as part of this migration.
+    DROP FUNCTION IF EXISTS public.has_role(uuid, public.app_role_old) CASCADE;
+    DROP FUNCTION IF EXISTS public.has_role(uuid, text) CASCADE;
   END IF;
 END $$;
 
 -- Recreate has_role with the new enum (idempotent — matches pattern used in
 -- earlier migrations).
+DROP FUNCTION IF EXISTS public.has_role CASCADE;
 CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role public.app_role)
 RETURNS boolean
 LANGUAGE sql
@@ -147,7 +150,7 @@ AS $$
 $$;
 
 -- Finally, drop the old enum now that nothing references it.
-DROP TYPE IF EXISTS public.app_role_old;
+DROP TYPE IF EXISTS public.app_role_old CASCADE;
 
 -- ── Step 4: Recreate admin-only policies on warehouse_tasks ──────────────────
 -- The underlying table is kept (OrderWorkflowEngine still inserts pick/pack/

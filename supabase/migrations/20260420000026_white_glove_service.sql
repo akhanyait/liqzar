@@ -20,6 +20,7 @@ CREATE INDEX IF NOT EXISTS orders_white_glove_idx
 --   * Order total >= R5000
 --   * Customer is Platinum loyalty tier
 --   * Order contains a cellar_reserve product
+DROP FUNCTION IF EXISTS public.auto_elevate_white_glove CASCADE;
 CREATE OR REPLACE FUNCTION public.auto_elevate_white_glove()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE

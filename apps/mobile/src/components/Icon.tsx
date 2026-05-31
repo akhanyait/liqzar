@@ -1,15 +1,11 @@
 import React from "react";
 import { Text, TextStyle, ViewStyle } from "react-native";
-import { processFontFamily } from "expo-font";
 import IoniconsIcon from "@expo/vector-icons/Ionicons";
 
-// In Expo Go, expo-font scopes font family names to `${sessionId}-ionicons`
-// internally, but react-native-vector-icons renders with the unscoped name
-// `'ionicons'` — causing `[?]` placeholders. processFontFamily() returns the
-// correct family name for the current runtime:
-//   • Expo Go       → `ExpoFont-${sessionId}-ionicons` (scoped)
-//   • Dev/prod build → `ionicons` (no scoping needed)
-// Rendering directly via <Text> with processFontFamily bypasses the mismatch.
+// In production builds (and dev clients), the font family registers as the
+// unscoped name 'ionicons', so we render directly via <Text> with that name.
+// (Expo SDK 53 removed expo-font's processFontFamily helper that was
+// previously used to handle Expo Go's scoped family names.)
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const glyphMap: Record<string, number | string> = require("@expo/vector-icons/build/vendor/react-native-vector-icons/glyphmaps/Ionicons.json");
@@ -87,7 +83,7 @@ export const Icon: React.FC<IconProps> = ({
       style={[
         style,
         {
-          fontFamily: processFontFamily("ionicons") ?? "ionicons",
+          fontFamily: "ionicons",
           fontSize: size,
           color,
           fontWeight: "normal" as const,

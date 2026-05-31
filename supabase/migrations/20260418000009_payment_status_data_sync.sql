@@ -31,6 +31,13 @@ SET status = 'captured',
     updated_at = NOW()
 WHERE status = 'paid';
 
+-- 2b. Migrate legacy "awaiting_payment" -> "pending" (semantically equivalent).
+--     Existed in pre-v3.1 builds during the Yoco hosted-checkout redirect window.
+UPDATE payments
+SET status = 'pending',
+    updated_at = NOW()
+WHERE status = 'awaiting_payment';
+
 -- 3. Verify no unexpected legacy values remain (warn only; do not fail)
 DO $$
 DECLARE

@@ -24,6 +24,7 @@ CREATE INDEX IF NOT EXISTS product_reviews_product_approved_idx
   WHERE moderation_status = 'approved';
 
 -- ─── Set verified_buyer automatically when a review is inserted ────────
+DROP FUNCTION IF EXISTS public.set_review_verified_buyer CASCADE;
 CREATE OR REPLACE FUNCTION public.set_review_verified_buyer()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -107,6 +108,7 @@ CREATE POLICY "review_flags_admin_select" ON public.review_flags
     )
   );
 
+DROP FUNCTION IF EXISTS public.bump_review_flag_count CASCADE;
 CREATE OR REPLACE FUNCTION public.bump_review_flag_count()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN

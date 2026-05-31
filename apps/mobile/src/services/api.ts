@@ -96,10 +96,11 @@ export const productsApi = {
  */
 export const ordersApi = {
   async getOrders(userId: string) {
-    // Try with order_items join first, fall back to simple query
+    // Include items in the response so list rows can show "X items" badges
+    // and the OrderDetail screen has them without a second round-trip.
     const { data, error } = await supabase
       .from("orders")
-      .select("*")
+      .select("*, order_items(*)")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
@@ -108,9 +109,11 @@ export const ordersApi = {
   },
 
   async getOrderById(orderId: string) {
+    // Embed order_items via Supabase's relational JOIN. OrderDetailScreen
+    // reads from order.order_items — without this, items render as empty.
     const { data, error } = await supabase
       .from("orders")
-      .select("*")
+      .select("*, order_items(*)")
       .eq("id", orderId)
       .single();
 

@@ -16,7 +16,7 @@ SELECT
   p.image_url,
   p.bottle_size,
   SUM(oi.quantity)::integer                AS qty_owned,
-  SUM(oi.quantity * oi.price)::numeric     AS paid_total,
+  SUM(oi.quantity * oi.unit_price)::numeric AS paid_total,
   MAX(o.created_at)                         AS last_acquired_at,
   p.price                                   AS current_unit_price,
   (SUM(oi.quantity) * p.price)::numeric    AS current_value

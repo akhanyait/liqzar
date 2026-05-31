@@ -182,6 +182,7 @@ CREATE TRIGGER trg_award_loyalty_on_delivery
 -- and the order is reverted to 'ready' so dispatch can re-assign.
 -- Requires pg_cron extension (available in Supabase Pro plans).
 
+DROP FUNCTION IF EXISTS auto_reassign_timed_out_assignments();
 CREATE OR REPLACE FUNCTION auto_reassign_timed_out_assignments()
 RETURNS INTEGER AS $$
 DECLARE

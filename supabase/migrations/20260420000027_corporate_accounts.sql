@@ -74,6 +74,7 @@ ALTER TABLE public.orders
 CREATE SEQUENCE IF NOT EXISTS public.corporate_invoice_seq
   START 1 INCREMENT 1 MINVALUE 1 NO MAXVALUE CACHE 1;
 
+DROP FUNCTION IF EXISTS public.next_corporate_invoice_no CASCADE;
 CREATE OR REPLACE FUNCTION public.next_corporate_invoice_no()
 RETURNS text LANGUAGE plpgsql AS $$
 DECLARE
@@ -86,6 +87,7 @@ END;
 $$;
 
 -- ─── Issue an invoice (called by backend when corporate order is placed)
+DROP FUNCTION IF EXISTS public.issue_corporate_invoice CASCADE;
 CREATE OR REPLACE FUNCTION public.issue_corporate_invoice(
   p_account_id uuid,
   p_order_id   uuid,
@@ -135,6 +137,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.issue_corporate_invoice(uuid, uuid, bigint, bigint, text) TO authenticated;
 
 -- ─── Mark invoice paid ──────────────────────────────────────────────────
+DROP FUNCTION IF EXISTS public.mark_corporate_invoice_paid CASCADE;
 CREATE OR REPLACE FUNCTION public.mark_corporate_invoice_paid(
   p_invoice_id uuid
 )
@@ -233,6 +236,7 @@ CREATE POLICY "corporate_invoices_select" ON public.corporate_invoices
   );
 
 -- updated_at touch
+DROP FUNCTION IF EXISTS public.touch_corporate_accounts_updated_at CASCADE;
 CREATE OR REPLACE FUNCTION public.touch_corporate_accounts_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at := now(); RETURN NEW; END;

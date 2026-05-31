@@ -11,6 +11,7 @@
 -- ============================================================================
 
 -- ── reserve_order_stock: reserve all items for an order atomically ──────────
+DROP FUNCTION IF EXISTS reserve_order_stock CASCADE;
 CREATE OR REPLACE FUNCTION reserve_order_stock(p_order_id UUID)
 RETURNS VOID AS $$
 DECLARE
@@ -36,6 +37,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 -- ── release_order_stock: release all reserved items for an order atomically ─
+DROP FUNCTION IF EXISTS release_order_stock CASCADE;
 CREATE OR REPLACE FUNCTION release_order_stock(p_order_id UUID)
 RETURNS VOID AS $$
 DECLARE
@@ -55,6 +57,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 -- ── reserve_stock: single-product shim retained for backward compatibility ──
+DROP FUNCTION IF EXISTS reserve_stock CASCADE;
 CREATE OR REPLACE FUNCTION reserve_stock(p_product_id UUID, p_quantity INTEGER)
 RETURNS VOID AS $$
 BEGIN
@@ -72,6 +75,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 -- ── release_reserved_stock: single-product shim retained for compatibility ──
+DROP FUNCTION IF EXISTS release_reserved_stock CASCADE;
 CREATE OR REPLACE FUNCTION release_reserved_stock(p_product_id UUID, p_quantity INTEGER)
 RETURNS VOID AS $$
 BEGIN

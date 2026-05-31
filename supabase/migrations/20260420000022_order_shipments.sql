@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS public.order_shipments (
                          'pending','preparing','ready','picked_up',
                          'en_route','delivered','failed','cancelled'
                        )),
-  assigned_driver_id uuid REFERENCES public.drivers(id) ON DELETE SET NULL,
+  assigned_driver_id uuid REFERENCES public.driver_profiles(id) ON DELETE SET NULL,
   driver_pin         text,
   scheduled_for_date date,
   scheduled_window   text,
@@ -71,7 +71,7 @@ DROP POLICY IF EXISTS "order_shipments_driver_select" ON public.order_shipments;
 CREATE POLICY "order_shipments_driver_select" ON public.order_shipments
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM public.drivers d
+      SELECT 1 FROM public.driver_profiles d
       WHERE d.id = order_shipments.assigned_driver_id
         AND d.user_id = auth.uid()
     )
@@ -87,6 +87,7 @@ CREATE POLICY "order_shipments_admin_all" ON public.order_shipments
   );
 
 -- ─── updated_at trigger ────────────────────────────────────────────────
+DROP FUNCTION IF EXISTS public.touch_order_shipments_updated_at CASCADE;
 CREATE OR REPLACE FUNCTION public.touch_order_shipments_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -101,6 +102,7 @@ CREATE TRIGGER order_shipments_touch
   FOR EACH ROW EXECUTE FUNCTION public.touch_order_shipments_updated_at();
 
 -- ─── Helper to mark an order as multi-shipment when any row is inserted ─
+DROP FUNCTION IF EXISTS public.mark_order_multi_shipment CASCADE;
 CREATE OR REPLACE FUNCTION public.mark_order_multi_shipment()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN

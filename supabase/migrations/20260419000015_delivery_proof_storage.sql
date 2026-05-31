@@ -64,5 +64,3 @@ CREATE POLICY "Admin full access to proof bucket" ON storage.objects
     AND public.has_role(auth.uid(), 'admin')
   );
 
-COMMENT ON POLICY "Driver uploads proof to own path" ON storage.objects IS
-  'Driver may INSERT into delivery-proofs bucket only under their own {uid}/ folder. Path convention: {driverId}/{orderId}/{filename}.';

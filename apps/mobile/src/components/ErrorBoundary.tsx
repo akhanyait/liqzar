@@ -15,6 +15,7 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  componentStack: string | null;
 }
 
 /**
@@ -24,24 +25,25 @@ interface State {
 class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, componentStack: null };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, componentStack: null };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     console.error("ErrorBoundary caught an error:", error, errorInfo);
+    this.setState({ componentStack: errorInfo.componentStack ?? null });
   }
 
   handleTryAgain = (): void => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, componentStack: null });
     this.props.onReset?.();
   };
 
   handleGoHome = (): void => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, componentStack: null });
   };
 
   render(): ReactNode {
@@ -60,6 +62,14 @@ class ErrorBoundary extends Component<Props, State> {
             <ScrollView style={styles.errorBox}>
               <Text style={styles.errorText}>
                 {this.state.error?.message || "Unknown error"}
+                {"\n\n"}
+                STACK:
+                {"\n"}
+                {this.state.error?.stack || "(no stack)"}
+                {"\n\n"}
+                COMPONENT:
+                {"\n"}
+                {this.state.componentStack || "(no component stack)"}
               </Text>
             </ScrollView>
 
@@ -135,7 +145,7 @@ const styles = StyleSheet.create({
   },
   errorBox: {
     width: "100%",
-    maxHeight: 120,
+    maxHeight: 320,
     backgroundColor: DARK_SURFACE,
     borderRadius: 8,
     borderWidth: 1,

@@ -3,6 +3,7 @@
 -- whenever orders.status transitions to a user-facing state. The existing
 -- useNotifications hook subscribes to realtime INSERTs and will toast on arrival.
 
+DROP FUNCTION IF EXISTS public.notify_order_status_change CASCADE;
 CREATE OR REPLACE FUNCTION public.notify_order_status_change()
 RETURNS TRIGGER
 LANGUAGE plpgsql

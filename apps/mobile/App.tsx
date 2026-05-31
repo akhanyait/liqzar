@@ -23,6 +23,13 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SplashScreen from "expo-splash-screen";
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
+import Mapbox from "@rnmapbox/maps";
+
+// Initialise Mapbox once at app start. Token comes from EAS env via app.config.
+Mapbox.setAccessToken(
+  (Constants.expoConfig?.extra as any)?.mapboxAccessToken ?? null,
+);
 import { AuthProvider } from "./src/contexts/AuthContext";
 import { CartProvider } from "./src/contexts/CartContext";
 import { OrderProvider } from "./src/contexts/OrderContext";
@@ -43,15 +50,16 @@ export default function App() {
   useEffect(() => {
     async function prepare() {
       try {
-        // Use Ionicons.loadFont() — the canonical API that loads the exact
-        // same asset reference the component uses, guaranteeing the font
-        // family 'ionicons' is registered before any icon renders.
-        await Ionicons.loadFont();
+        // Race font load against a 3s timeout. Without this, a hung
+        // loadFont() leaves the app stuck on the native splash forever,
+        // which Play reviewers see as "app does not load."
+        await Promise.race([
+          Ionicons.loadFont(),
+          new Promise((resolve) => setTimeout(resolve, 3000)),
+        ]);
       } catch (e) {
         console.warn("Font loading error:", e);
       }
-      // Always set appReady regardless of font outcome so the app never
-      // stays on a black/blank screen due to a font loading failure.
       setAppReady(true);
     }
     prepare();

@@ -77,6 +77,7 @@ CREATE POLICY "gift_card_redemptions_owner_select" ON public.gift_card_redemptio
   );
 
 -- ─── Code generator (8-char alnum, exclude look-alikes) ────────────────
+DROP FUNCTION IF EXISTS public.generate_gift_card_code CASCADE;
 CREATE OR REPLACE FUNCTION public.generate_gift_card_code()
 RETURNS text
 LANGUAGE plpgsql
@@ -102,6 +103,7 @@ END;
 $$;
 
 -- ─── Issue card (called after payment capture) ─────────────────────────
+DROP FUNCTION IF EXISTS public.issue_gift_card CASCADE;
 CREATE OR REPLACE FUNCTION public.issue_gift_card(
   p_amount_cents integer,
   p_purchaser_id uuid,
@@ -141,6 +143,7 @@ END;
 $$;
 
 -- ─── Redeem card at checkout (decrements balance atomically) ───────────
+DROP FUNCTION IF EXISTS public.redeem_gift_card CASCADE;
 CREATE OR REPLACE FUNCTION public.redeem_gift_card(
   p_code text,
   p_amount_cents integer,
@@ -197,6 +200,7 @@ END;
 $$;
 
 -- ─── Balance check (no auth, used for preview at checkout) ────────────
+DROP FUNCTION IF EXISTS public.check_gift_card_balance CASCADE;
 CREATE OR REPLACE FUNCTION public.check_gift_card_balance(p_code text)
 RETURNS TABLE (balance_cents integer, expires_at timestamptz, status text)
 LANGUAGE plpgsql

@@ -58,59 +58,115 @@ class NotificationServiceClass {
    * Returns a PushRegistrationResult so callers can surface permission-denied UI
    * and prompt the user to open OS Settings.
    */
+  /** Write current diagnostic status to the user's profile so we can query it from Supabase. */
+  private async logStatus(message: string): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from("profiles")
+          .update({
+            push_registration_status: message,
+            push_registration_at: new Date().toISOString(),
+          })
+          .eq("id", user.id);
+      }
+    } catch {
+      /* never throw from diagnostics */
+    }
+  }
+
   async registerForPushNotifications(): Promise<PushRegistrationResult> {
+    console.log("[NotificationService] STEP 1: starting registration...");
+    await this.logStatus("STEP 1: starting registration");
+
     if (!Notifications || !Device) {
-      console.warn("[NotificationService] Native modules unavailable — skipping push registration");
+      console.warn("[NotificationService] STEP 1 FAIL: native modules unavailable");
+      await this.logStatus("STEP 1 FAIL: native modules unavailable");
       return { token: null, denied: false, unavailable: true };
     }
+    console.log("[NotificationService] STEP 1 OK: native modules loaded");
 
     if (!Device.isDevice) {
-      console.warn(
-        "[NotificationService] Push notifications require a physical device",
-      );
+      console.warn("[NotificationService] STEP 2 FAIL: not a physical device");
+      await this.logStatus("STEP 2 FAIL: not a physical device");
       return { token: null, denied: false, unavailable: true };
     }
+    console.log("[NotificationService] STEP 2 OK: physical device");
 
     // Check existing permissions
     const { status: existingStatus } =
       await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
+    console.log(`[NotificationService] STEP 3: existing permission status = ${existingStatus}`);
 
     if (existingStatus !== "granted") {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
+      console.log(`[NotificationService] STEP 3: after request = ${status}`);
     }
 
     if (finalStatus !== "granted") {
       const isDenied = finalStatus === "denied";
-      console.warn(
-        `[NotificationService] Permission not granted (status=${finalStatus}). isDenied=${isDenied}`,
-      );
+      console.warn(`[NotificationService] STEP 3 FAIL: permission ${finalStatus}`);
+      await this.logStatus(`STEP 3 FAIL: permission=${finalStatus}`);
       return { token: null, denied: isDenied, unavailable: false };
     }
+    console.log("[NotificationService] STEP 3 OK: permission granted");
+    await this.logStatus("STEP 3 OK: permission granted, fetching token...");
 
     // Get Expo push token
     try {
       const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+      console.log(`[NotificationService] STEP 4: projectId = ${projectId}`);
       if (!projectId) {
-        console.error(
-          "[NotificationService] Missing EAS projectId in app.config extras — push token registration will fail",
-        );
+        console.error("[NotificationService] STEP 4 FAIL: missing EAS projectId");
       }
       const tokenData = await Notifications.getExpoPushTokenAsync({
         projectId: projectId || undefined,
       });
       this.pushToken = tokenData.data;
+      console.log(
+        `[NotificationService] STEP 4 OK: token = ${(this.pushToken ?? "").slice(0, 30)}...`,
+      );
+      await this.logStatus(
+        `STEP 4 OK: token=${(this.pushToken ?? "").slice(0, 30)}...`,
+      );
 
       // Save token to Supabase
       const {
         data: { user },
       } = await supabase.auth.getUser();
+      console.log(`[NotificationService] STEP 5: user.id = ${user?.id ?? "null"}`);
       if (user) {
-        await supabase
+        const { data, error } = await supabase
           .from("profiles")
-          .update({ push_token: this.pushToken })
-          .eq("id", user.id);
+          .update({
+            push_token: this.pushToken,
+            push_registration_status: `STEP 5 OK: token saved at ${new Date().toISOString()}`,
+            push_registration_at: new Date().toISOString(),
+          })
+          .eq("id", user.id)
+          .select();
+        if (error) {
+          console.error(
+            `[NotificationService] STEP 5 FAIL: Supabase update error:`,
+            error,
+          );
+          await this.logStatus(`STEP 5 FAIL: ${error.message}`);
+        } else {
+          console.log(
+            `[NotificationService] STEP 5 OK: updated ${data?.length ?? 0} profile rows`,
+          );
+          if (!data || data.length === 0) {
+            console.warn(
+              `[NotificationService] STEP 5 WARN: 0 rows matched id=${user.id} — profile row missing in DB`,
+            );
+            await this.logStatus(`STEP 5 WARN: 0 rows matched id=${user.id}`);
+          }
+        }
+      } else {
+        console.error("[NotificationService] STEP 5 FAIL: no authenticated user");
       }
 
       // Configure Android channel
@@ -124,8 +180,9 @@ class NotificationServiceClass {
       }
 
       return { token: this.pushToken, denied: false, unavailable: false };
-    } catch (error) {
+    } catch (error: any) {
       console.error("[NotificationService] Token registration error:", error);
+      await this.logStatus(`STEP 4 FAIL: ${error?.message ?? String(error)}`);
       return { token: null, denied: false, unavailable: false };
     }
   }

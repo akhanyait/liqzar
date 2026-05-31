@@ -85,6 +85,7 @@ CREATE POLICY "Users delete own stock subs"
 -- ─── AUTO-NOTIFY TRIGGER ──────────────────────────────────────────────
 -- Fires when a product transitions from unavailable → available.
 -- "Available" means in_stock=true AND stock_quantity > 0 (or stock_quantity IS NULL).
+DROP FUNCTION IF EXISTS public.notify_stock_returned CASCADE;
 CREATE OR REPLACE FUNCTION public.notify_stock_returned()
 RETURNS TRIGGER
 LANGUAGE plpgsql
