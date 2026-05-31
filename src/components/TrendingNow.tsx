@@ -52,12 +52,14 @@ const TrendingNow = ({ products, isLoading }: TrendingNowProps) => {
         {/* Scroll arrows */}
         <button
           onClick={() => scroll("left")}
+          aria-label="Scroll trending products left"
           className="absolute -left-1 md:left-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-card border border-border shadow-md flex items-center justify-center hover:bg-secondary transition-colors hidden md:flex"
         >
           <ChevronLeft className="w-4 h-4 text-foreground" />
         </button>
         <button
           onClick={() => scroll("right")}
+          aria-label="Scroll trending products right"
           className="absolute -right-1 md:right-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-card border border-border shadow-md flex items-center justify-center hover:bg-secondary transition-colors hidden md:flex"
         >
           <ChevronRight className="w-4 h-4 text-foreground" />
@@ -139,6 +141,7 @@ function TrendingCard({ product, index }: { product: Product; index: number }) {
               e.stopPropagation();
               addItem(product);
             }}
+            aria-label={`Add ${product.name} to cart`}
             className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full warm-gradient text-primary-foreground flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"
           >
             <Plus className="w-3.5 h-3.5" />
