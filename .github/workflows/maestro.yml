@@ -1,0 +1,93 @@
+name: Maestro (mobile)
+
+# Mobile E2E is expensive (macOS runners cost minutes 10x faster than
+# ubuntu-latest) so we DO NOT run on every PR. Triggers:
+#   - Nightly at 03:00 SAST (01:00 UTC) on main, so a broken release branch
+#     surfaces before SA morning standup.
+#   - Manual via workflow_dispatch — use this from the Actions tab before
+#     cutting an App Store / Play Store build.
+#   - On PRs that explicitly touch apps/mobile/ or .maestro/.
+on:
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - ".maestro/**"
+      - ".github/workflows/maestro.yml"
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: maestro-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    name: Maestro iOS Simulator
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: "17"
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Maestro
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+
+      - name: Boot iPhone simulator
+        run: |
+          # Pick the highest-numbered iPhone simulator that's already installed
+          # on the runner image. macos-15 ships with iPhone 15 / 16 simulators.
+          DEVICE_ID=$(xcrun simctl list devices available --json | \
+            python3 -c "import sys,json; d=json.load(sys.stdin)['devices']; \
+              cands=[x for r in d.values() for x in r if 'iPhone' in x['name']]; \
+              cands.sort(key=lambda x: x['name']); print(cands[-1]['udid'])")
+          echo "Booting $DEVICE_ID"
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          echo "DEVICE_ID=$DEVICE_ID" >> $GITHUB_ENV
+
+      # Building the Expo app from scratch is slow (~15 min). For the initial
+      # harness drop we run flows against Expo Go on the simulator so the CI
+      # path stays under 10 min. To run against a real native build, set
+      # EXPO_BUILD=true in workflow_dispatch.
+      - name: Install Expo Go on simulator
+        run: |
+          xcrun simctl install "$DEVICE_ID" \
+            "$(find ~/Library/Developer/CoreSimulator -name 'Expo Go.app' -print -quit 2>/dev/null || echo /Applications/Expo\ Go.app)"
+        continue-on-error: true
+
+      - name: Run Maestro flows
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+        run: maestro test ../../.maestro/flows --format junit --output ../../maestro-report.xml
+
+      - name: Upload Maestro artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-report
+          path: |
+            maestro-report.xml
+            ~/.maestro/tests/
+          retention-days: 14

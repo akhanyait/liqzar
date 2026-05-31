@@ -1,0 +1,90 @@
+name: Playwright E2E
+
+on:
+  pull_request:
+    branches: [main, "chore/*", "feat/*"]
+    paths-ignore:
+      - "**/*.md"
+      - "apps/mobile/**"
+      - ".maestro/**"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # On PR pushes, cancel the previous run so we always test the latest sha.
+  group: e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  playwright:
+    name: Run Playwright (chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Browser binary cache — keyed by Playwright version so the cache invalidates
+      # automatically on upgrade.
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pw-${{ runner.os }}-
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+        # On cache hit we still install OS deps but skip the binary download.
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+
+      - name: Install Chromium OS deps (cache hit)
+        run: pnpm exec playwright install-deps chromium
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+
+      - name: Start Vite dev server
+        run: pnpm dev &
+        env:
+          CI: "true"
+
+      - name: Wait for dev server
+        run: |
+          for i in {1..60}; do
+            if curl -fs http://localhost:8080 > /dev/null; then
+              echo "Vite up after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Vite never came up"; exit 1
+
+      - name: Playwright run
+        run: pnpm exec playwright test
+        env:
+          CI: "true"
+          PLAYWRIGHT_BASE_URL: http://localhost:8080
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14

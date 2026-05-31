@@ -1,0 +1,23 @@
+# Customer demo sign-in flow — taps the "Customer" quick-login button on the
+# Expo login screen, waits for the home/dashboard to render. This validates
+# the DEV-only signInWithPhone shortcut in apps/mobile AuthContext (tests
+# the same code path that backs Playwright's customer.setup.ts on web).
+appId: com.liqzar.delivery
+tags:
+  - sign-in
+  - customer
+---
+- launchApp:
+    clearState: true
+- scrollUntilVisible:
+    element:
+      text: "Customer"
+    direction: DOWN
+- tapOn: "Customer"
+# The first authenticated screen shows the customer's name in the header
+# ("Demo Customer" — set on the TEST_CREDENTIALS entry).
+- extendedWaitUntil:
+    visible:
+      text: "Demo Customer"
+    timeout: 30000
+- takeScreenshot: customer-dashboard

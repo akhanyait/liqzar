@@ -1,0 +1,22 @@
+# Driver demo sign-in flow — mobile-only role. Validates that the driver
+# stack mounts (DriverVerificationGate passes for the seeded test driver,
+# who has is_verified=true in the fixture).
+appId: com.liqzar.delivery
+tags:
+  - sign-in
+  - driver
+---
+- launchApp:
+    clearState: true
+- scrollUntilVisible:
+    element:
+      text: "Driver"
+    direction: DOWN
+- tapOn: "Driver"
+# Seeded test-user label for the driver entry — see TEST_CREDENTIALS in
+# apps/mobile/src/contexts/AuthContext.tsx.
+- extendedWaitUntil:
+    visible:
+      text: "Mandla Nkosi"
+    timeout: 30000
+- takeScreenshot: driver-dashboard
