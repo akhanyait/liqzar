@@ -47,3 +47,9 @@ verify_jwt = true
 
 [functions.admin-create-driver]
 verify_jwt = false
+
+# ai-translate is callable by guests too so the landing/catalogue pages can
+# render in the user's preferred SA language before they log in. Translations
+# are cached in localStorage per language, so repeat visits are free.
+[functions.ai-translate]
+verify_jwt = false

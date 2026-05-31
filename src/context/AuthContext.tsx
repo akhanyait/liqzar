@@ -7,8 +7,15 @@ import React, {
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session } from "@supabase/supabase-js";
+import { toZAPhone } from "@/lib/za-utils";
+import {
+  type AppRole,
+  ROLE_LABELS as SHARED_ROLE_LABELS,
+} from "@/lib/roles";
 
-export type AppRole = "admin" | "customer" | "driver";
+// Re-export so existing callers (RoleBadge, Header, AuthPage, etc.) keep working.
+export type { AppRole };
+export const ROLE_LABELS = SHARED_ROLE_LABELS;
 
 interface AppUser {
   id: string;
@@ -40,19 +47,10 @@ const IS_DEV = import.meta.env.MODE !== "production";
 
 const normalisePhone = (value: string) => value.replace(/\D/g, "");
 
-/**
- * Convert a local South-African number (0XX...) into E.164 (+27XX...).
- */
-const toE164 = (phone: string): string => {
-  const digits = normalisePhone(phone);
-  if (digits.startsWith("0") && digits.length === 10) {
-    return `+27${digits.slice(1)}`;
-  }
-  if (digits.startsWith("27") && digits.length === 11) {
-    return `+${digits}`;
-  }
-  return digits.startsWith("+") ? digits : `+${digits}`;
-};
+// Local alias for clarity — `toZAPhone` from za-utils is the SA-specific E.164
+// normaliser used app-wide (web + mobile). Keeping the `toE164` name here means
+// callers downstream don't have to learn the new spelling.
+const toE164 = toZAPhone;
 
 // Phone-to-role mapping for test / demo mode — DEV ONLY
 const PHONE_ROLE_MAP: Record<string, AppRole> = IS_DEV
@@ -72,12 +70,6 @@ const TEST_USER_CREDS: Record<string, { email: string; password: string; role: A
 
 const getRoleForPhone = (phone: string): AppRole => {
   return PHONE_ROLE_MAP[normalisePhone(phone)] || "customer";
-};
-
-export const ROLE_LABELS: Record<AppRole, string> = {
-  admin: "Back-Office Admin",
-  customer: "Customer",
-  driver: "Driver",
 };
 
 // Test users — only available in development builds, empty array in production
