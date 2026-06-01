@@ -41,8 +41,7 @@ function buildFallbackDescription(name: string, category: string, bottle_size?: 
 }
 
 function parseSemicolonCSV(text: string) {
-  const lines = text.split("
-").map((l) => l.trim()).filter(Boolean);
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   let headerIdx = lines.findIndex((l) => l.includes("Product Name"));
   if (headerIdx === -1) headerIdx = 4;
 
