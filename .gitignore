@@ -67,3 +67,9 @@ gradle.properties.local
 *.sw?
 builds/
 public/hero/_originals/
+
+# Playwright + Maestro test artifacts (regenerated on every run)
+playwright-report/
+test-results/
+playwright/.auth/
+maestro-report.xml

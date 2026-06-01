@@ -1,0 +1,29 @@
+# Maestro smoke flow — the mobile equivalent of tests/e2e/smoke.spec.ts S1/S2.
+# Verifies the Expo app boots, the login screen renders, and all three role
+# quick-login buttons (Customer, Driver, Back-Office Admin) are visible.
+#
+# Run locally:
+#   pnpm maestro
+# Or after a fresh native build:
+#   pnpm maestro:ios
+#
+# CI: .github/workflows/maestro.yml (manual + nightly trigger).
+appId: com.liqzar.delivery
+tags:
+  - smoke
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    text: "LIQZAR.*"
+- assertVisible:
+    text: "Sign in.*"
+# Quick-login buttons render in DEV builds via apps/mobile TEST_USERS.
+- scrollUntilVisible:
+    element:
+      text: "Customer"
+    direction: DOWN
+- assertVisible: "Customer"
+- assertVisible: "Driver"
+- assertVisible: "Back-Office Admin"
+- takeScreenshot: launch-screen
