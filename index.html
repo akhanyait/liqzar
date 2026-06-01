@@ -73,6 +73,16 @@
     <!-- Performance: preconnect to critical third-party origins -->
     <link rel="preconnect" href="https://deiewcktyzzeviszukqj.supabase.co" />
     <link rel="dns-prefetch" href="https://deiewcktyzzeviszukqj.supabase.co" />
+    <!-- Google Fonts: preconnect + parallel stylesheet load instead of the
+         slow @import waterfall in src/index.css. The font-face arrives during
+         first paint instead of after, so DM Sans/Outfit text renders without
+         the "fallback → web font" swap that contributes to CLS. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=Outfit:wght@300;400;500;600;700;800&display=swap"
+    />
 
     <!-- JSON-LD: Organization -->
     <script type="application/ld+json">

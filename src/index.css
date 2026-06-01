@@ -1,4 +1,6 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=Outfit:wght@300;400;500;600;700;800&display=swap");
+/* Google Fonts loaded via <link> in index.html — parses in parallel with
+   the main bundle and arrives before first paint, vs. the @import waterfall
+   that fetched CSS then woff2 sequentially. */
 
 /* Mapbox GL CSS is imported via the npm package in MapboxNavigation.tsx */
 
@@ -46,7 +48,9 @@
     --popover: 40 28% 98%;
     --popover-foreground: 25 25% 14%;
 
-    --primary: 40 85% 50%;
+    /* --primary aligned with brand gold (was `40 85% 50%` = #eca413, an
+       orange that contradicted the inline #D4AF37 used in Header gradients). */
+    --primary: 46 65% 52%;
     --primary-foreground: 25 25% 12%;
 
     --secondary: 40 22% 91%;
@@ -67,13 +71,16 @@
 
     --radius: 0.875rem;
 
-    /* Premium gold palette — LIQZAR brand gold #D4AF37 (HSL 46° 65% 52%).
-       Previous values (--gold: 40 85% 50%) rendered as a saturated orange
-       that clashed with the inline-styled brand elements (e.g. View All
-       pill in Header.tsx uses the literal #D4AF37 → #B8962E gradient). */
+    /* Premium gold palette — LIQZAR brand gold #D4AF37 (HSL 46° 65% 52%). */
     --gold: 46 65% 52%;
     --gold-light: 48 70% 62%;
     --gold-dark: 44 60% 45%;
+    /* Darker gold reserved for SMALL TEXT on the cream background. The brand
+       --gold/--primary value of #D4AF37 only hits ~2.6:1 on #f6f4ee — fails
+       WCAG AA (4.5 needed). This token (#6B5114) is ~5.5:1 — passes AA and
+       still reads as "gold" rather than brown. Use via Tailwind `text-gold-text`.
+       Background tokens stay on brand gold; only small body text needs this. */
+    --gold-text: 42 70% 25%;
     --champagne: 40 50% 70%;
     --champagne-light: 42 45% 82%;
     --champagne-cream: 40 30% 92%;
@@ -115,8 +122,12 @@
     --popover: 222 18% 12%;
     --popover-foreground: 40 20% 95%;
 
-    --primary: 40 85% 52%;
+    /* Brand gold in dark mode (was `40 85% 52%`, the orange). */
+    --primary: 46 65% 52%;
     --primary-foreground: 222 20% 9%;
+    /* In dark mode the brand gold on dark espresso bg already hits ~9:1,
+       so `text-gold-text` resolves to the brand gold (no need to darken). */
+    --gold-text: 46 65% 52%;
 
     --secondary: 222 15% 16%;
     --secondary-foreground: 40 20% 90%;
