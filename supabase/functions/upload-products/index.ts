@@ -31,8 +31,7 @@ function buildPlaceholderImageUrl(name: string, category?: string | null) {
     "Liqueurs & Cream": "008080",
   };
   const color = colors[category || ""] || "2c3e50";
-  const label = encodeURIComponent(name.split(" ").slice(0, 3).join("
-"));
+  const label = encodeURIComponent(name.split(" ").slice(0, 3).join("\n"));
   return `https://placehold.co/400x500/${color}/ffffff?text=${label}&font=raleway`;
 }
 

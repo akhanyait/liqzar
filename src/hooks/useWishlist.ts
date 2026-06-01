@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 // Tables `wishlists` / `stock_notifications` were added in migration 013 but
 // the generated Database types haven't been regenerated yet. Cast locally so
 // we don't have to touch the auto-generated file and lose future regens.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const supabase = typedSupabase as any;
 
 /**

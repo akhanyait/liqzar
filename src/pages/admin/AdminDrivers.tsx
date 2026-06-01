@@ -92,8 +92,8 @@ function useFleetDrivers() {
 
       // Active assignments per driver (auth user id → assignment count in live statuses).
       const userIds = rows.map((r) => r.user_id);
-      let activeMap = new Map<string, number>();
-      let lastMap = new Map<string, string>();
+      const activeMap = new Map<string, number>();
+      const lastMap = new Map<string, string>();
       if (userIds.length > 0) {
         const { data: assigns } = await supabase
           .from("driver_assignments")

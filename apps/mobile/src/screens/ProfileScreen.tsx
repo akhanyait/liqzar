@@ -29,6 +29,8 @@ interface MenuItem {
   showChevron?: boolean;
   iconColor: string;
   iconBg: string;
+  /** Render a "Soon" pill on the row to indicate the feature is in progress. */
+  comingSoon?: boolean;
 }
 
 interface MenuGroup {

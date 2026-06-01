@@ -29,6 +29,7 @@ interface OrderItem {
     price: number;
     image_url: string;
     stock_quantity: number;
+    category: string;
   };
 }
 
@@ -44,6 +45,7 @@ interface FrequentItem {
   name: string;
   price: number;
   image_url: string;
+  category: string;
   count: number;
 }
 
@@ -78,7 +80,7 @@ export default function ReorderScreen() {
       }
       const { data } = await supabase
         .from('orders')
-        .select('*, order_items(*, products(name, price, image_url, stock_quantity))')
+        .select('*, order_items(*, products(name, price, image_url, stock_quantity, category))')
         .eq('user_id', userId)
         .in('status', ['completed', 'delivered'])
         .order('created_at', { ascending: false })
@@ -97,6 +99,7 @@ export default function ReorderScreen() {
                 name: item.products?.name || 'Unknown',
                 price: item.products?.price || 0,
                 image_url: item.products?.image_url || '',
+                category: item.products?.category || '',
                 count: 0,
               };
             }
@@ -120,6 +123,7 @@ export default function ReorderScreen() {
         name: item.products?.name || 'Unknown',
         price: item.products?.price || 0,
         image_url: item.products?.image_url || '',
+        category: item.products?.category || '',
       }, item.quantity);
     });
     navigation.navigate('Cart');
@@ -131,6 +135,7 @@ export default function ReorderScreen() {
       name: item.name,
       price: item.price,
       image_url: item.image_url,
+      category: item.category,
     });
     Alert.alert('Added', `${item.name} added to cart`);
   };

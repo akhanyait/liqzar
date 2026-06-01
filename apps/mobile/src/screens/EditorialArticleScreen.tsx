@@ -40,7 +40,7 @@ const EditorialArticleScreen = () => {
       >
         <Text style={{ color: colors.text.primary }}>Story not found.</Text>
         <TouchableOpacity onPress={() => navigation.navigate("Editorial")}>
-          <Text style={{ color: colors.primary, marginTop: spacing.md }}>
+          <Text style={{ color: colors.gold.primary, marginTop: spacing.md }}>
             Back to Editorial
           </Text>
         </TouchableOpacity>
@@ -83,9 +83,9 @@ const EditorialArticleScreen = () => {
         {/* Meta */}
         <View style={styles.metaBlock}>
           <View
-            style={[styles.categoryPill, { backgroundColor: colors.primary + "22" }]}
+            style={[styles.categoryPill, { backgroundColor: colors.gold.primary + "22" }]}
           >
-            <Text style={[styles.categoryPillText, { color: colors.primary }]}>
+            <Text style={[styles.categoryPillText, { color: colors.gold.primary }]}>
               {article.category.toUpperCase()}
             </Text>
           </View>
@@ -136,7 +136,7 @@ const EditorialArticleScreen = () => {
 
           {!!article.pullQuote && (
             <View
-              style={[styles.pullQuote, { borderLeftColor: colors.primary }]}
+              style={[styles.pullQuote, { borderLeftColor: colors.gold.primary }]}
             >
               <Text
                 style={[styles.pullQuoteText, { color: colors.text.primary }]}
@@ -229,7 +229,7 @@ const EditorialArticleScreen = () => {
                   />
                   <View style={{ padding: spacing.md }}>
                     <Text
-                      style={[styles.category, { color: colors.primary }]}
+                      style={[styles.category, { color: colors.gold.primary }]}
                     >
                       {r.category.toUpperCase()}
                     </Text>

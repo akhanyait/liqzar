@@ -7,7 +7,7 @@ import { supabase } from "../lib/supabase";
  */
 
 // Table added in migration 014; Database types not regenerated — cast to any.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const sb = supabase as any;
 
 export interface LiveLocation {
@@ -47,7 +47,7 @@ export const useDriverLiveLocation = (orderId: string | undefined) => {
           table: "driver_live_locations",
           filter: `order_id=eq.${orderId}`,
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (payload: any) => {
           if (payload.new) setLocation(payload.new as LiveLocation);
         },

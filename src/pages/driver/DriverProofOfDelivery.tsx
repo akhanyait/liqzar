@@ -13,7 +13,7 @@ import { supabase as typedSupabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "@/hooks/use-toast";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const supabase = typedSupabase as any;
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
