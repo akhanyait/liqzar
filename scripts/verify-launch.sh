@@ -168,8 +168,8 @@ except Exception:
         echo "  response: $BODY" | head -c 200
         record "PASS" "ai-translate" "HTTP 200"
       else
-        warn "ai-translate HTTP $HTTP (likely missing LOVABLE_API_KEY in supabase/.env)"
-        record "WARN" "ai-translate" "HTTP $HTTP — set LOVABLE_API_KEY"
+        warn "ai-translate HTTP $HTTP (likely missing GOOGLE_AI_API_KEY in supabase/.env)"
+        record "WARN" "ai-translate" "HTTP $HTTP — set GOOGLE_AI_API_KEY"
       fi
     fi
   fi

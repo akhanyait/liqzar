@@ -1,6 +1,15 @@
 // @ts-nocheck
+// Validate that each product's image actually depicts the product.
+// Uses Gemini's multimodal vision — fetches the image bytes, sends them as
+// inline base64 along with the product name, and asks the model to judge.
+//
+// Was previously routed through Lovable's gateway (OpenAI-compatible chat
+// completions with `image_url`). Now calls Gemini directly.
+//
+// Env: GOOGLE_AI_API_KEY  (free tier from https://aistudio.google.com)
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { GoogleGenAI, Type } from "npm:@google/genai@2.6.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,14 +17,35 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const MODEL = "gemini-2.5-flash";
+
+/** Download an image URL and convert to base64 + mime — what Gemini wants. */
+async function fetchImageAsInline(url: string): Promise<{ data: string; mimeType: string } | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const mimeType = res.headers.get("content-type")?.split(";")[0]?.trim() || "image/jpeg";
+    const buf = new Uint8Array(await res.arrayBuffer());
+    // Base64-encode without blowing the stack on large images (chunked).
+    let bin = "";
+    for (let i = 0; i < buf.length; i += 0x8000) {
+      bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+    }
+    return { data: btoa(bin), mimeType };
+  } catch {
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const GOOGLE_AI_API_KEY = Deno.env.get("GOOGLE_AI_API_KEY");
+    if (!GOOGLE_AI_API_KEY) throw new Error("GOOGLE_AI_API_KEY not configured");
+    const ai = new GoogleGenAI({ apiKey: GOOGLE_AI_API_KEY });
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -23,7 +53,6 @@ serve(async (req) => {
 
     const { batchSize = 10, offset = 0 } = await req.json().catch(() => ({}));
 
-    // Fetch featured/trending/best-seller/new-arrival products that have images
     const { data: products, error: fetchErr } = await supabase
       .from("products")
       .select("id, name, category, image_url")
@@ -40,7 +69,6 @@ serve(async (req) => {
       });
     }
 
-    // Use AI vision to validate each image matches the product
     const CHUNK = 5;
     let flaggedCount = 0;
     const flaggedProducts: string[] = [];
@@ -50,56 +78,48 @@ serve(async (req) => {
 
       const validationPromises = chunk.map(async (product) => {
         try {
-          // Ask AI to validate if image matches the product name
-          const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
-              messages: [
-                {
-                  role: "user",
-                  content: [
-                    {
-                      type: "text",
-                      text: `You are a product image validator for a liquor delivery platform. Look at this image and determine if it shows the correct product bottle/packaging for "${product.name}" (category: ${product.category}).
+          const image = await fetchImageAsInline(product.image_url);
+          if (!image) {
+            // Couldn't fetch the image at all — flag it for re-scrape.
+            console.log(`Could not fetch image for ${product.name}`);
+            return { id: product.id, name: product.name, reason: "image fetch failed" };
+          }
 
-Respond with ONLY a JSON object: {"valid": true/false, "reason": "brief explanation"}
+          const response = await ai.models.generateContent({
+            model: MODEL,
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text: `You are a product image validator for a liquor delivery platform. Look at this image and determine if it shows the correct product bottle/packaging for "${product.name}" (category: ${product.category}).
 
 Rules:
 - If the image shows a bottle or product that matches or could reasonably be "${product.name}", mark as valid.
 - If the image is a placeholder, generic image, completely wrong product, broken image, or shows text only (like "Clase Azul Reposado" on a colored background), mark as invalid.
-- If you cannot load or see the image, mark as invalid.`,
-                    },
-                    {
-                      type: "image_url",
-                      image_url: { url: product.image_url },
-                    },
-                  ],
+- If you cannot see the image clearly, mark as invalid.`,
+                  },
+                  { inlineData: { data: image.data, mimeType: image.mimeType } },
+                ],
+              },
+            ],
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  valid: { type: Type.BOOLEAN },
+                  reason: { type: Type.STRING },
                 },
-              ],
-            }),
+                required: ["valid", "reason"],
+              },
+            },
           });
 
-          if (!aiResponse.ok) {
-            console.error(`AI validation failed for ${product.name}: ${aiResponse.status}`);
-            return null;
-          }
-
-          const aiData = await aiResponse.json();
-          const content = aiData.choices?.[0]?.message?.content || "";
-
-          // Parse the response
-          const jsonMatch = content.match(/\{[^}]+\}/);
-          if (jsonMatch) {
-            const result = JSON.parse(jsonMatch[0]);
-            if (!result.valid) {
-              console.log(`Image invalid for ${product.name}: ${result.reason}`);
-              return { id: product.id, name: product.name, reason: result.reason };
-            }
+          const parsed = JSON.parse(response.text ?? '{"valid":true}');
+          if (!parsed.valid) {
+            console.log(`Image invalid for ${product.name}: ${parsed.reason}`);
+            return { id: product.id, name: product.name, reason: parsed.reason };
           }
           return null;
         } catch (err) {
@@ -117,9 +137,8 @@ Rules:
       }
     }
 
-    // For flagged products, clear their image so scraper can re-fetch
+    // For flagged products, trigger the scraper to re-fetch
     if (flaggedProducts.length > 0) {
-      // Trigger scraper for each flagged product
       const scrapeUrl = `${supabaseUrl}/functions/v1/scrape-product-images`;
       const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "";
 
@@ -157,13 +176,13 @@ Rules:
         remaining,
         flaggedProducts,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
     console.error("validate-product-images error:", e);
-    return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

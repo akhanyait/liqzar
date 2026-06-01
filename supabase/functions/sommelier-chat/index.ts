@@ -1,11 +1,23 @@
 // @ts-nocheck
+// LIQZAR AI Sommelier — direct Google Gemini, streaming.
+//
+// Previously routed through Lovable's gateway as an OpenAI-compatible facade
+// over the same Gemini model. The gateway added cost + a 3rd-party dependency
+// for no functional benefit. This calls Gemini directly via Google's SDK and
+// shims the response into OpenAI-style SSE chunks so the React client
+// (src/components/SommelierChat.tsx) doesn't need to change.
+//
+// Env: GOOGLE_AI_API_KEY  (free tier from https://aistudio.google.com)
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { GoogleGenAI } from "npm:@google/genai@2.6.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const MODEL = "gemini-2.5-flash";
 
 const SYSTEM_PROMPT = `You are LIQZAR's AI Sommelier — a warm, knowledgeable expert on wines, spirits, beers, and cocktails. You help South African customers discover the perfect drink.
 
@@ -22,6 +34,32 @@ Format tips:
 - Use bullet points for multiple recommendations
 - Keep responses under 200 words unless detailed comparison requested`;
 
+/** Wrap each Gemini text chunk in an OpenAI-style SSE frame so the existing
+ *  React client (which parses `data: {"choices":[{"delta":{"content"...}}]}`)
+ *  keeps working without a code change. */
+function geminiToOpenAISSE(geminiStream: AsyncIterable<{ text: string }>) {
+  const encoder = new TextEncoder();
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of geminiStream) {
+          const text = chunk?.text ?? "";
+          if (!text) continue;
+          const sse = `data: ${JSON.stringify({
+            choices: [{ delta: { content: text } }],
+          })}\n\n`;
+          controller.enqueue(encoder.encode(sse));
+        }
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      } catch (err) {
+        console.error("sommelier-chat stream error:", err);
+        controller.error(err);
+      }
+    },
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -29,44 +67,24 @@ serve(async (req) => {
 
   try {
     const { messages } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const GOOGLE_AI_API_KEY = Deno.env.get("GOOGLE_AI_API_KEY");
+    if (!GOOGLE_AI_API_KEY) throw new Error("GOOGLE_AI_API_KEY is not configured");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
-        stream: true,
-      }),
+    const ai = new GoogleGenAI({ apiKey: GOOGLE_AI_API_KEY });
+
+    // OpenAI roles → Gemini roles. Gemini uses "user" + "model"; assistant → model.
+    const contents = (messages ?? []).map((m: { role: string; content: string }) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+
+    const stream = await ai.models.generateContentStream({
+      model: MODEL,
+      contents,
+      config: { systemInstruction: SYSTEM_PROMPT },
     });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again shortly." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI service temporarily unavailable." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      return new Response(JSON.stringify({ error: "AI service error" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    return new Response(response.body, {
+    return new Response(geminiToOpenAISSE(stream), {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (e) {

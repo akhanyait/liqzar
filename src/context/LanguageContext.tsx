@@ -5,9 +5,8 @@
 // network call needed for English.
 //
 // Adapted from ArtisanZA's LanguageContext (May 2026). Differences:
-//   - Calls liqZAR's `ai-translate` EF which uses the Lovable AI gateway
-//     (vs Artisan's direct Google Gemini call) so it shares LIQZAR's
-//     LOVABLE_API_KEY + billing.
+//   - Calls liqZAR's `ai-translate` EF which uses Google Gemini directly via
+//     GOOGLE_AI_API_KEY (free tier from https://aistudio.google.com).
 //   - Persists the user's choice to `profiles.preferred_language` (added in
 //     the 20260531 migration). Falls back to localStorage for guests.
 import {
