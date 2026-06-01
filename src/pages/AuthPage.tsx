@@ -428,7 +428,10 @@ const AuthPage = () => {
         {/* ── DEV ONLY: Instant role login ── */}
         {IS_DEV && (
           <div className="mb-6 p-4 rounded-xl border-2 border-[#D4AF37]/40 bg-[#D4AF37]/5 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest" style={{ color: "#D4AF37" }}>
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gold-text">
+              {/* Was inline color: #D4AF37 — gave 1.85:1 on the cream-tinted
+                 #D4AF37/5 background. text-gold-text resolves to #6B5114
+                 → 5.1:1 on that tint. (DEV-only block; still readable.) */}
               <CheckCircle2 className="w-4 h-4" /> DEV — Instant Login (no OTP)
             </div>
             <p className="text-[11px] text-muted-foreground -mt-1">
@@ -617,7 +620,9 @@ const AuthPage = () => {
             </p>
           )}
           {isSuccess && (
-            <p className="text-sm text-emerald-600">Database connection OK.</p>
+            {/* text-emerald-600 (#059669) on cream = 3.42:1 — fails WCAG AA.
+                emerald-700 (#047857) = 4.9:1 — passes. */}
+            <p className="text-sm text-emerald-700">Database connection OK.</p>
           )}
           {isError && (
             <>

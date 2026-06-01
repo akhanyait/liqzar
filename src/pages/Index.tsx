@@ -117,7 +117,10 @@ function ProductGrid({
   isLoading: boolean;
 }) {
   return (
-    <section className="container px-4">
+    // min-h reserves vertical space for the 2-row product grid so the footer
+    // doesn't jump up when skeletons swap to real ProductCards. This is the
+    // dominant CLS contributor on landing (was 0.183 @ 946ms on `footer`).
+    <section className="container px-4 min-h-[1380px] md:min-h-[760px]">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl md:text-2xl font-display font-bold text-foreground section-title-accent">

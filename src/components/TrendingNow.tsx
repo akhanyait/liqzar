@@ -38,7 +38,7 @@ const TrendingNow = ({ products, isLoading }: TrendingNowProps) => {
   };
 
   return (
-    <section className="mt-12">
+    <section className="mt-12 min-h-[280px] md:min-h-[300px]">
       <div className="text-center mb-8">
         <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground">
           Trending Now

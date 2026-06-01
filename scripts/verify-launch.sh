@@ -74,18 +74,24 @@ if should_run ios && [ -z "${SKIP_IOS:-}" ]; then
     else
       WS=$(ls -1d *.xcworkspace | head -1)
       SCHEME="${WS%.xcworkspace}"
-      SIM=$(xcrun simctl list devices available --json | python3 -c "
+      # Pick by name, not UDID. UDID resolution via simctl JSON sometimes
+      # surfaces stale or non-iPhone-shaped devices that xcodebuild rejects
+      # ("Unable to find a destination matching..."). Name resolution lets
+      # Xcode pick the appropriate runtime version itself.
+      SIM_NAME=$(xcrun simctl list devices available --json | python3 -c "
 import sys, json
-d=json.load(sys.stdin)['devices']
-cands=[x for r in d.values() for x in r if 'iPhone' in x['name'] and 'Pro' not in x['name']]
-cands.sort(key=lambda x: x['name'])
-print(cands[-1]['udid'] if cands else '')")
-      if [ -z "$SIM" ]; then
+d = json.load(sys.stdin)['devices']
+cands = [x['name'] for r in d.values() for x in r if 'iPhone' in x['name'] and 'Pro' not in x['name'] and 'Air' not in x['name'] and 'Mirror' not in x['name']]
+# Prefer the highest-numbered non-Pro iPhone (16e, 17, 17e, …)
+cands.sort()
+print(cands[-1] if cands else 'iPhone 17')")
+      if [ -z "$SIM_NAME" ]; then
         fail "no iPhone simulator"
         record "FAIL" "iOS xcodebuild" "no sim"
       else
+        echo "  Building against: $SIM_NAME"
         xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Debug \
-          -destination "platform=iOS Simulator,id=$SIM" \
+          -destination "platform=iOS Simulator,name=$SIM_NAME" \
           -derivedDataPath ./build -quiet build >/tmp/launch-ios-build.log 2>&1
         if [ $? -eq 0 ]; then
           APP=$(find ./build/Build/Products -name '*.app' -maxdepth 5 | head -1)
