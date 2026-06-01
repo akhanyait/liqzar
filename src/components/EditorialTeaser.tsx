@@ -13,7 +13,7 @@ const EditorialTeaser = () => {
   const featured = EDITORIAL_ARTICLES.slice(0, 3);
 
   return (
-    <section className="container px-4 mt-14">
+    <section className="container px-4 mt-14 min-h-[520px] md:min-h-[460px]">
       <div className="flex items-end justify-between mb-6 gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] font-semibold text-gold-text mb-1.5">
