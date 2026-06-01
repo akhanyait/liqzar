@@ -1,0 +1,51 @@
+name: Deno typecheck (Edge Functions)
+
+# Catches Edge Function bugs that ESLint and the Vite build can't — broken
+# string literals, malformed imports, Deno-specific TS errors. ESLint runs
+# tsc in TS-only mode and applies the mobile tsconfig (jsx: react-native),
+# which doesn't apply to Edge Functions. Deno's own typechecker knows what
+# a Supabase EF expects.
+#
+# Triggers only when a file under supabase/functions/ changes — keeps the
+# main e2e.yml job fast and focused on the web app.
+
+on:
+  pull_request:
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/deno-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+
+jobs:
+  deno-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v1.x
+
+      - name: Type-check every Edge Function
+        run: |
+          # --no-config skips the repo tsconfig walk (which picks up the
+          # mobile tsconfig and chokes on `jsx: react-native`). Each EF is
+          # self-describing via its own imports.
+          fail=0
+          for ef in supabase/functions/*/index.ts; do
+            name=$(basename $(dirname "$ef"))
+            if deno check --no-config --quiet "$ef"; then
+              echo "OK   $name"
+            else
+              echo "FAIL $name"
+              fail=$((fail+1))
+            fi
+          done
+          if [ $fail -gt 0 ]; then
+            echo "::error::$fail Edge Function(s) failed type-check"
+            exit 1
+          fi

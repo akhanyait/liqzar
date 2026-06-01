@@ -218,7 +218,7 @@ export default function AdminOrderDetail() {
         total: Number(data.total),
         driver: data.assigned_driver_id
           ? { name: "Assigned Driver", rating: 0, phone: "" }
-          : null,
+          : { name: "", rating: 0, phone: "" },
       });
       setLoading(false);
     };

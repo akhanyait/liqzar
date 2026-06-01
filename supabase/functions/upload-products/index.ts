@@ -31,8 +31,7 @@ function buildPlaceholderImageUrl(name: string, category?: string | null) {
     "Liqueurs & Cream": "008080",
   };
   const color = colors[category || ""] || "2c3e50";
-  const label = encodeURIComponent(name.split(" ").slice(0, 3).join("
-"));
+  const label = encodeURIComponent(name.split(" ").slice(0, 3).join("\n"));
   return `https://placehold.co/400x500/${color}/ffffff?text=${label}&font=raleway`;
 }
 
@@ -42,8 +41,7 @@ function buildFallbackDescription(name: string, category: string, bottle_size?: 
 }
 
 function parseSemicolonCSV(text: string) {
-  const lines = text.split("
-").map((l) => l.trim()).filter(Boolean);
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   let headerIdx = lines.findIndex((l) => l.includes("Product Name"));
   if (headerIdx === -1) headerIdx = 4;
 

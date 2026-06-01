@@ -13,7 +13,7 @@ import { supabase as typedSupabase } from "@/integrations/supabase/client";
  * moving pin only.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const supabase = typedSupabase as any;
 
 interface Trip {

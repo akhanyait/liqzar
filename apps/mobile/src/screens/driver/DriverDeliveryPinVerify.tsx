@@ -19,6 +19,7 @@ import { useOrders } from "../../contexts/OrderContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { ComplianceService } from "../../services/ComplianceService";
 import { PaymentService } from "../../services/PaymentService";
+import { supabase } from "../../lib/supabase";
 import { spacing, borderRadius } from "../../theme";
 
 const { width } = Dimensions.get("window");

@@ -43,7 +43,7 @@ const CataloguePage = () => {
   });
 
   const filtered = useMemo(() => {
-    let list = [...allProducts];
+    const list = [...allProducts];
 
     switch (sortBy) {
       case "price-asc":

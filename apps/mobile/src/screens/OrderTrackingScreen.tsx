@@ -356,7 +356,7 @@ export default function OrderTrackingScreen() {
     const bytes = new Uint8Array(24);
     // crypto.getRandomValues exists in RN via expo-crypto or via global;
     // fall back to Math.random if unavailable (share links are low-risk).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const cryptoObj: any = (globalThis as any).crypto;
     if (cryptoObj?.getRandomValues) {
       cryptoObj.getRandomValues(bytes);
@@ -372,7 +372,7 @@ export default function OrderTrackingScreen() {
     try {
       const token = generateShareToken();
       const expiresAt = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const sb: any = supabase;
       const { data: { user } } = await sb.auth.getUser();
       if (!user) {
@@ -733,7 +733,7 @@ export default function OrderTrackingScreen() {
                     ]}
                   >
                     <LinearGradient
-                      colors={gradients.goldShimmer as unknown as string[]}
+                      colors={gradients.goldShimmer as unknown as [string, string, ...string[]]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                       style={[
@@ -967,7 +967,7 @@ export default function OrderTrackingScreen() {
                     activeOpacity={0.7}
                   >
                     <LinearGradient
-                      colors={gradients.gold as unknown as string[]}
+                      colors={gradients.gold as unknown as [string, string, ...string[]]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                       style={styles.actionPillFilledGradient}

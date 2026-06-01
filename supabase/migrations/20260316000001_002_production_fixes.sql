@@ -285,8 +285,11 @@ BEGIN
       delivery_notes = COALESCE(p_notes, delivery_notes)
   WHERE order_id = p_order_id AND driver_id = p_driver_id;
 
-  -- Log status change in order_status_history
-  INSERT INTO order_status_history (order_id, old_status, new_status, changed_by, notes)
+  -- Log status change in order_status_history. Columns are from_status /
+  -- to_status (defined in 20260314140000_orders_system.sql) — earlier
+  -- versions of this function used old_status/new_status which never existed
+  -- and would have crashed `supabase db reset` on a fresh schema.
+  INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, notes)
   VALUES (p_order_id, 'ready', 'picked_up', p_driver_id, 'Depot release confirmed');
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -149,7 +149,7 @@ const DriverScanItems = () => {
       // Fetch all product details separately (more reliable than join)
       const productIds =
         itemsData?.map((item: any) => item.product_id).filter(Boolean) || [];
-      let productsMap = new Map();
+      const productsMap = new Map();
 
       if (productIds.length > 0) {
         const { data: productsData, error: productsError } = await supabase

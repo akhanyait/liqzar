@@ -210,8 +210,10 @@ BEGIN
     WHERE id = v_rec.order_id
       AND status = 'assigned';
 
-    -- Log status change
-    INSERT INTO order_status_history (order_id, old_status, new_status, changed_by, notes)
+    -- Log status change. Columns are from_status / to_status (per
+    -- 20260314140000_orders_system.sql) — using old_status/new_status here
+    -- would have failed `supabase db reset` on a fresh schema.
+    INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, notes)
     VALUES (
       v_rec.order_id,
       'assigned',

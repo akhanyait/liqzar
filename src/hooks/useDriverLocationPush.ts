@@ -12,7 +12,7 @@ import { supabase as typedSupabase } from "@/integrations/supabase/client";
  * equivalent at apps/mobile/src/hooks/useDriverLocationPush.ts.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const supabase = typedSupabase as any;
 
 const INTERVAL_MS = 8_000;

@@ -132,7 +132,7 @@ export default function AdminOrderManagement() {
 
       // Batch-fetch profiles for all unique user_ids in one round-trip
       const userIds = [...new Set((data || []).map((o: any) => o.user_id).filter(Boolean))];
-      let profileMap: Record<string, { full_name?: string; phone?: string }> = {};
+      const profileMap: Record<string, { full_name?: string; phone?: string }> = {};
       if (userIds.length > 0) {
         const { data: profiles } = await supabase
           .from('profiles')
