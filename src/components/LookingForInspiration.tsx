@@ -91,6 +91,7 @@ const LookingForInspiration = () => {
             <select
               value={drink}
               onChange={(e) => setDrink(e.target.value)}
+              aria-label="Drink type"
               className="flex-1 h-11 px-4 rounded-xl bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="">What do you like?</option>
@@ -102,6 +103,7 @@ const LookingForInspiration = () => {
             <select
               value={budget}
               onChange={(e) => setBudget(e.target.value)}
+              aria-label="Budget range"
               className="flex-1 h-11 px-4 rounded-xl bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="">Your Budget?</option>

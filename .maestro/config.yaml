@@ -1,0 +1,5 @@
+flows: "./flows"
+executionOrder:
+  # On CI we want the first failure to surface immediately rather than wading
+  # through downstream noise. Locally set MAESTRO_CONTINUE=true to override.
+  continueOnFailure: false
