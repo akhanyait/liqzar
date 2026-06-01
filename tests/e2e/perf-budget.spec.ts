@@ -60,10 +60,19 @@ test("PB1 · landing LCP, CLS, and first-paint JS within budget", async ({
   // Wait the typical settle window for LCP (browser fires "final" after ~2.5s
   // of no larger element). PerformanceObserver buffers entries from before
   // we subscribed, so we don't miss the early frames.
+  //
+  // Also capture per-shift details (value, time, target selectors) so the
+  // failing run tells us WHICH nodes are shifting — no DevTools trace needed.
   const vitals = await page.evaluate(() => {
-    return new Promise<{ lcp: number; cls: number }>((resolve) => {
+    return new Promise<{
+      lcp: number;
+      cls: number;
+      shifts: Array<{ value: number; t: number; targets: string[] }>;
+    }>((resolve) => {
       let lcp = 0;
       let cls = 0;
+      const shifts: Array<{ value: number; t: number; targets: string[] }> = [];
+
       const lcpObs = new PerformanceObserver((list) => {
         for (const e of list.getEntries()) {
           lcp = Math.max(lcp, (e as PerformanceEntry & { renderTime?: number }).renderTime ?? e.startTime);
@@ -72,13 +81,33 @@ test("PB1 · landing LCP, CLS, and first-paint JS within budget", async ({
       lcpObs.observe({ type: "largest-contentful-paint", buffered: true });
 
       const clsObs = new PerformanceObserver((list) => {
-        for (const e of list.getEntries() as Array<PerformanceEntry & { value: number; hadRecentInput: boolean }>) {
-          if (!e.hadRecentInput) cls += e.value;
+        for (const e of list.getEntries() as Array<
+          PerformanceEntry & {
+            value: number;
+            hadRecentInput: boolean;
+            sources?: Array<{ node?: Element | null }>;
+          }
+        >) {
+          if (e.hadRecentInput) continue;
+          cls += e.value;
+          // Capture selectors for the shifting nodes — the most useful diag.
+          const targets: string[] = [];
+          for (const s of e.sources ?? []) {
+            const n = s.node as Element | null;
+            if (!n) continue;
+            const tag = n.tagName?.toLowerCase() ?? "?";
+            const id = n.id ? `#${n.id}` : "";
+            const cls = (n as HTMLElement).className
+              ? "." + String((n as HTMLElement).className).split(/\s+/).slice(0, 2).join(".")
+              : "";
+            targets.push(`${tag}${id}${cls}`);
+          }
+          shifts.push({ value: e.value, t: Math.round(e.startTime), targets });
         }
       });
       clsObs.observe({ type: "layout-shift", buffered: true });
 
-      setTimeout(() => resolve({ lcp, cls }), 2500);
+      setTimeout(() => resolve({ lcp, cls, shifts }), 2500);
     });
   });
 
@@ -88,6 +117,17 @@ test("PB1 · landing LCP, CLS, and first-paint JS within budget", async ({
   console.log(`LCP: ${vitals.lcp.toFixed(0)} ms (budget ${BUDGET.lcp_ms})`);
   console.log(`CLS: ${vitals.cls.toFixed(3)} (budget ${BUDGET.cls})`);
   console.log(`First-paint JS: ${firstPaintKb} KB (budget ${BUDGET.first_paint_js_kb})`);
+
+  // When CLS busts, print the actual shifting nodes so we know what to fix.
+  if (vitals.cls > BUDGET.cls && vitals.shifts.length > 0) {
+    const sorted = [...vitals.shifts].sort((a, b) => b.value - a.value);
+    console.log(`\n[CLS] ${sorted.length} layout-shift entries (largest first):`);
+    for (const s of sorted.slice(0, 10)) {
+      console.log(
+        `  +${s.value.toFixed(4)} @ ${s.t}ms  ${s.targets.join(", ") || "(no targets)"}`,
+      );
+    }
+  }
 
   expect(vitals.lcp).toBeLessThanOrEqual(BUDGET.lcp_ms);
   expect(vitals.cls).toBeLessThanOrEqual(BUDGET.cls);
