@@ -619,9 +619,9 @@ const AuthPage = () => {
               Checking connection…
             </p>
           )}
+          {/* emerald-700 not emerald-600 — the lighter shade was 3.42:1 on
+             cream (fails WCAG AA); -700 measures 4.9:1 (passes). */}
           {isSuccess && (
-            {/* text-emerald-600 (#059669) on cream = 3.42:1 — fails WCAG AA.
-                emerald-700 (#047857) = 4.9:1 — passes. */}
             <p className="text-sm text-emerald-700">Database connection OK.</p>
           )}
           {isError && (
