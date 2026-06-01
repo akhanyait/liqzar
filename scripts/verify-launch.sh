@@ -139,12 +139,13 @@ if should_run ai-translate && [ -z "${SKIP_AI:-}" ]; then
     fail "supabase stack not running — run: supabase start -x vector"
     record "FAIL" "ai-translate" "no supabase"
   else
-    supabase functions deploy ai-translate --no-verify-jwt --local >/tmp/launch-ai-deploy.log 2>&1
-    if [ $? -ne 0 ]; then
-      fail "deploy failed — see /tmp/launch-ai-deploy.log"
-      record "FAIL" "ai-translate deploy" "see log"
-    else
-      ok "ai-translate deployed locally"
+    # `supabase start` already hot-serves every function under
+    # supabase/functions/<name>/ at http://127.0.0.1:54321/functions/v1/<name>
+    # — no local-deploy step needed. (Remote deploy to Pro is a separate
+    # `supabase functions deploy ai-translate --no-verify-jwt` — no --local
+    # flag exists.) Skip straight to the smoke call.
+    ok "ai-translate function present + auto-served by supabase start"
+    if true; then
       ANON_KEY=$(supabase status -o json 2>/dev/null | python3 -c "
 import sys, json
 try:

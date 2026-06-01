@@ -104,7 +104,7 @@ const Footer = () => {
             <p className="text-[10px] text-white/50">
               &copy; {new Date().getFullYear()} LIQZAR
             </p>
-            <p className="text-[10px] text-white/40">
+            <p className="text-[10px] text-white/70">
               Powered by{" "}
               <a
                 href="https://akhanya.co.za"
@@ -340,7 +340,9 @@ const Footer = () => {
                 </span>
                 <span
                   className="text-[10px] font-semibold tracking-widest uppercase"
-                  style={{ color: "rgba(212, 175, 55, 0.5)" }}
+                  /* 0.5 alpha gave 3.05:1 against zinc-900 (WCAG fail).
+                     0.9 measured at ~4.7:1 — passes AA for small text. */
+                  style={{ color: "rgba(212, 175, 55, 0.9)" }}
                 >
                   Reserve the Finest.
                 </span>
@@ -361,7 +363,7 @@ const Footer = () => {
               under 18.
             </p>
 
-            <p className="text-[11px] text-white/40 text-center">
+            <p className="text-[11px] text-white/70 text-center">
               Powered by{" "}
               <a
                 href="https://akhanya.co.za"

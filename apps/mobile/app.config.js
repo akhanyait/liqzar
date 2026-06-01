@@ -76,7 +76,10 @@ export default {
         "expo-build-properties",
         {
           ios: {
-            deploymentTarget: "15.1",
+            // expo-build-properties 56.x rejects values below 16.4 with
+            // "needs to be at least version 16.4" — the plugin's hard floor
+            // for SDK 53. 15.1 was the earlier RN baseline.
+            deploymentTarget: "16.4",
             // newArchEnabled: false skips the Fabric/TurboModules pipeline,
             // which on Apple Silicon avoids the libfmt compile path that
             // breaks under Xcode 26. EAS can flip this true once the

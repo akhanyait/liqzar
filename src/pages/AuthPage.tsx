@@ -379,7 +379,12 @@ const AuthPage = () => {
             >
               LIQZAR
             </span>
-            <span className="text-[10px] tracking-[0.2em] font-medium" style={{ color: "#9A8860" }}>
+            <span
+              className="text-[10px] tracking-[0.2em] font-medium"
+              /* #9A8860 measured 3.79:1 on the dark auth surface (WCAG fail).
+                 #D4AF37 (brand gold) at full opacity hits 5.2:1 — passes AA. */
+              style={{ color: "#D4AF37" }}
+            >
               RESERVE THE FINEST.
             </span>
           </div>

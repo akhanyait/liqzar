@@ -132,9 +132,22 @@ function ProductGrid({
         </Link>
       </div>
       {isLoading ? (
+        // Each skeleton MUST match ProductCard's full rendered height
+        // (image + 4 info rows ≈ aspect-[3/4] + 92px) — otherwise the
+        // skeleton-to-real swap shifts every card by ~90px, which is the
+        // dominant CLS contributor on the landing page.
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-[3/4] rounded-2xl" />
+            <div key={i} className="bg-card border border-border/60 rounded-2xl overflow-hidden">
+              <Skeleton className="aspect-[3/4] rounded-none" />
+              <div className="p-3 space-y-1.5">
+                <Skeleton className="h-2.5 w-16 rounded" />
+                <Skeleton className="h-3.5 w-full rounded" />
+                <Skeleton className="h-3.5 w-3/4 rounded" />
+                <Skeleton className="h-3 w-12 mt-1 rounded" />
+                <Skeleton className="h-4 w-20 mt-1 rounded" />
+              </div>
+            </div>
           ))}
         </div>
       ) : (
