@@ -66,6 +66,27 @@ export default {
       bundler: "metro",
     },
     plugins: [
+      // expo-build-properties: per-platform native build flags. We pin
+      // iOS `deploymentTarget` to 15.1 (matches Expo SDK 53 baseline) so
+      // pods don't drag stale `IPHONEOS_DEPLOYMENT_TARGET = 9.0 / 11.0`
+      // values into Xcode 26 builds — those values were below Xcode 26's
+      // supported range (12.0+) and broke local `xcodebuild`. EAS Cloud
+      // builds use Xcode 15.x and are unaffected.
+      [
+        "expo-build-properties",
+        {
+          ios: {
+            deploymentTarget: "15.1",
+          },
+          android: {
+            // Match the SDK 53 default. Keeps the Android build aligned
+            // with what EAS expects.
+            compileSdkVersion: 35,
+            targetSdkVersion: 35,
+            minSdkVersion: 24,
+          },
+        },
+      ],
       [
         "expo-font",
         {

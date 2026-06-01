@@ -44,12 +44,35 @@ export default defineConfig(({ mode }) => ({
     include: ["mapbox-gl"],
   },
   build: {
+    // Bump the chunk-warning threshold from default 500 KB to 600 KB so
+    // legitimate (now-split) chunks don't trigger noise. Real budgets are
+    // enforced by tests/e2e/perf-budget.spec.ts.
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
+        // Split large always-used libraries into their own chunks. Before
+        // this, the main `index.js` chunk was 535 KB (Recharts + framer +
+        // helmet + radix in one bundle). Splitting lets the browser cache
+        // each library independently across deploys.
         manualChunks(id) {
-          if (id.includes("mapbox-gl")) {
-            return "mapbox";
+          if (id.includes("mapbox-gl")) return "mapbox";
+          if (
+            id.includes("node_modules/recharts") ||
+            id.includes("node_modules/d3-")
+          ) {
+            return "charts";
           }
+          if (id.includes("node_modules/framer-motion")) return "framer";
+          if (id.includes("node_modules/react-helmet-async")) return "helmet";
+          if (id.includes("node_modules/@radix-ui")) return "radix";
+          if (
+            id.includes("node_modules/react-dom") ||
+            id.includes("node_modules/react/") ||
+            id.includes("node_modules/scheduler")
+          ) {
+            return "react";
+          }
+          if (id.includes("node_modules/@supabase")) return "supabase";
         },
       },
     },

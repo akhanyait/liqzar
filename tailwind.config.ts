@@ -90,6 +90,10 @@ export default {
           light: "hsl(var(--gold-light))",
           dark: "hsl(var(--gold-dark))",
         },
+        // Darker gold reserved for body text on the cream light theme so
+        // WCAG AA contrast (4.5:1) passes. Use as `text-gold-text` — see
+        // `--gold-text` in src/index.css for the rationale + measured ratios.
+        "gold-text": "hsl(var(--gold-text))",
         maroon: {
           DEFAULT: "hsl(var(--maroon))",
           light: "hsl(var(--maroon-light))",

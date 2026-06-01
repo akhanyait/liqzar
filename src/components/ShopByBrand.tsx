@@ -40,7 +40,7 @@ const ShopByBrand = () => {
         </div>
         <Link
           to="/catalogue"
-          className="text-sm font-semibold text-primary flex items-center gap-1 hover:gap-2 transition-all"
+          className="text-sm font-semibold text-gold-text flex items-center gap-1 hover:gap-2 transition-all"
         >
           All Brands <ArrowRight className="w-3.5 h-3.5" />
         </Link>
