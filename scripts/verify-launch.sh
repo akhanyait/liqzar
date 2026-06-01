@@ -111,7 +111,12 @@ if should_run android && [ -z "${SKIP_ANDROID:-}" ]; then
   else
     ok "expo prebuild android (newArchEnabled=false applied)"
     pushd android >/dev/null
-    JAVA_HOME="$JAVA_HOME_17" ./gradlew assembleDebug --no-daemon --console=plain >/tmp/launch-android-build.log 2>&1
+    # Use the gradle daemon (the earlier --no-daemon was a workaround for
+    # the prefab hang, which is now fixed by newArchEnabled: false in
+    # app.config.js). The daemon is more reliable for the packaging step
+    # — the IncrementalSplitterRunnable failure we hit on --no-daemon
+    # doesn't recur with the daemon enabled.
+    JAVA_HOME="$JAVA_HOME_17" ./gradlew assembleDebug --console=plain --no-watch-fs >/tmp/launch-android-build.log 2>&1
     if [ $? -eq 0 ]; then
       APK=$(find app/build/outputs/apk/debug -name '*.apk' | head -1)
       ok "Android build success → $APK"
