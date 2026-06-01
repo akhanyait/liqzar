@@ -21,6 +21,7 @@
     "@supabase/supabase-js": "^2.38.0",
     "expo": "~53.0.0",
     "expo-blur": "~14.1.5",
+    "expo-build-properties": "^56.0.16",
     "expo-camera": "~16.1.11",
     "expo-clipboard": "~7.1.5",
     "expo-constants": "~17.1.8",

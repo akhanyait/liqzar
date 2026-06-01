@@ -21,10 +21,10 @@ const ShopByCountry = () => {
   };
 
   return (
-    <section className="container px-4 mt-14">
+    <section className="container px-4 mt-14 min-h-[340px]">
       <div className="flex items-end justify-between mb-6 gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] font-semibold text-primary mb-1.5">
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] font-semibold text-gold-text mb-1.5">
             <Globe2 className="w-3.5 h-3.5" />
             A World of Premium
           </div>
@@ -55,7 +55,7 @@ const ShopByCountry = () => {
           </button>
           <Link
             to="/catalogue"
-            className="ml-1 text-sm font-semibold text-primary inline-flex items-center gap-1.5 hover:gap-2.5 transition-all bg-primary/8 px-3 py-1.5 rounded-full hover:bg-primary/15"
+            className="ml-1 text-sm font-semibold text-gold-text inline-flex items-center gap-1.5 hover:gap-2.5 transition-all bg-primary/8 px-3 py-1.5 rounded-full hover:bg-primary/15"
           >
             All Origins <ArrowRight className="w-3.5 h-3.5" />
           </Link>
@@ -105,7 +105,7 @@ const ShopByCountry = () => {
                   <h3 className="text-base md:text-lg font-display font-bold text-foreground leading-tight">
                     {country.name}
                   </h3>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-primary/90 mt-0.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gold-text mt-0.5">
                     {country.tagline}
                   </p>
 
@@ -139,7 +139,7 @@ const ShopByCountry = () => {
       <div className="sm:hidden mt-3 flex justify-center">
         <Link
           to="/catalogue"
-          className="text-xs font-semibold text-primary inline-flex items-center gap-1.5 bg-primary/10 px-3 py-1.5 rounded-full"
+          className="text-xs font-semibold text-gold-text inline-flex items-center gap-1.5 bg-primary/10 px-3 py-1.5 rounded-full"
         >
           All Origins <ArrowRight className="w-3 h-3" />
         </Link>

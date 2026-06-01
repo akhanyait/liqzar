@@ -66,6 +66,41 @@ export default {
       bundler: "metro",
     },
     plugins: [
+      // expo-build-properties: per-platform native build flags. We pin
+      // iOS `deploymentTarget` to 15.1 (matches Expo SDK 53 baseline) so
+      // pods don't drag stale `IPHONEOS_DEPLOYMENT_TARGET = 9.0 / 11.0`
+      // values into Xcode 26 builds — those values were below Xcode 26's
+      // supported range (12.0+) and broke local `xcodebuild`. EAS Cloud
+      // builds use Xcode 15.x and are unaffected.
+      [
+        "expo-build-properties",
+        {
+          ios: {
+            deploymentTarget: "15.1",
+            // newArchEnabled: false skips the Fabric/TurboModules pipeline,
+            // which on Apple Silicon avoids the libfmt compile path that
+            // breaks under Xcode 26. EAS can flip this true once the
+            // upstream RN fix lands.
+            newArchEnabled: false,
+          },
+          android: {
+            // Match the SDK 53 default. Keeps the Android build aligned
+            // with what EAS expects.
+            compileSdkVersion: 35,
+            targetSdkVersion: 35,
+            minSdkVersion: 24,
+            // newArchEnabled: false avoids the prefab/NDK compile that
+            // hung gradle indefinitely on Apple Silicon — react-native-
+            // reanimated's prefab task deadlocks when two Kotlin compile
+            // daemons (1.9 + 2.0) end up running concurrently. Disabling
+            // the new architecture skips that path entirely.
+            newArchEnabled: false,
+            // Bump gradle's heap so kotlinc + JIT don't OOM under
+            // concurrent prebuild + r8 + lint.
+            extraMavenRepos: [],
+          },
+        },
+      ],
       [
         "expo-font",
         {

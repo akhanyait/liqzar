@@ -38,7 +38,7 @@ const LookingForInspiration = () => {
   };
 
   return (
-    <section className="container px-4 mt-14">
+    <section className="container px-4 mt-14 min-h-[420px] md:min-h-[380px]">
       <div className="text-center mb-8">
         <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground">
           Looking For Inspiration?

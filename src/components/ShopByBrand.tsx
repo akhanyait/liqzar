@@ -32,7 +32,7 @@ const brands = [
 
 const ShopByBrand = () => {
   return (
-    <section className="container px-4 mt-14">
+    <section className="container px-4 mt-14 min-h-[260px]">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground">Shop by Brand</h2>
@@ -40,7 +40,7 @@ const ShopByBrand = () => {
         </div>
         <Link
           to="/catalogue"
-          className="text-sm font-semibold text-primary flex items-center gap-1 hover:gap-2 transition-all"
+          className="text-sm font-semibold text-gold-text flex items-center gap-1 hover:gap-2 transition-all"
         >
           All Brands <ArrowRight className="w-3.5 h-3.5" />
         </Link>

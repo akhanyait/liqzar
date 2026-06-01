@@ -13,10 +13,10 @@ const EditorialTeaser = () => {
   const featured = EDITORIAL_ARTICLES.slice(0, 3);
 
   return (
-    <section className="container px-4 mt-14">
+    <section className="container px-4 mt-14 min-h-[520px] md:min-h-[460px]">
       <div className="flex items-end justify-between mb-6 gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] font-semibold text-primary mb-1.5">
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] font-semibold text-gold-text mb-1.5">
             <BookOpen className="w-3.5 h-3.5" />
             Sip Stories
           </div>
@@ -30,7 +30,7 @@ const EditorialTeaser = () => {
         </div>
         <Link
           to="/editorial"
-          className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-primary bg-primary/8 px-3 py-1.5 rounded-full hover:bg-primary/15 hover:gap-2.5 transition-all flex-shrink-0"
+          className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-gold-text bg-primary/8 px-3 py-1.5 rounded-full hover:bg-primary/15 hover:gap-2.5 transition-all flex-shrink-0"
         >
           All Stories <ArrowRight className="w-3.5 h-3.5" />
         </Link>
@@ -57,7 +57,7 @@ const EditorialTeaser = () => {
                   className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                <span className="absolute top-3 left-3 inline-block px-2 py-0.5 rounded-full bg-card/95 backdrop-blur-sm text-[10px] font-bold uppercase tracking-widest text-primary">
+                <span className="absolute top-3 left-3 inline-block px-2 py-0.5 rounded-full bg-card/95 backdrop-blur-sm text-[10px] font-bold uppercase tracking-widest text-gold-text">
                   {article.category}
                 </span>
               </div>
@@ -87,7 +87,7 @@ const EditorialTeaser = () => {
       <div className="sm:hidden mt-4 flex justify-center">
         <Link
           to="/editorial"
-          className="text-xs font-semibold text-primary inline-flex items-center gap-1.5 bg-primary/10 px-3 py-1.5 rounded-full"
+          className="text-xs font-semibold text-gold-text inline-flex items-center gap-1.5 bg-primary/10 px-3 py-1.5 rounded-full"
         >
           All Stories <ArrowRight className="w-3 h-3" />
         </Link>

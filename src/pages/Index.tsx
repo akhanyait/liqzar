@@ -126,7 +126,7 @@ function ProductGrid({
         </div>
         <Link
           to="/catalogue"
-          className="text-sm font-semibold text-primary flex items-center gap-1.5 hover:gap-2.5 transition-all duration-200 bg-primary/8 px-3 py-1.5 rounded-full hover:bg-primary/15"
+          className="text-sm font-semibold text-gold-text flex items-center gap-1.5 hover:gap-2.5 transition-all duration-200 bg-primary/8 px-3 py-1.5 rounded-full hover:bg-primary/15"
         >
           View all <ArrowRight className="w-3.5 h-3.5" />
         </Link>

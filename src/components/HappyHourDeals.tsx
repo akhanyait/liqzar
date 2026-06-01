@@ -75,7 +75,7 @@ export default function HappyHourDeals() {
   const [deals] = useState(generateDeals);
 
   return (
-    <section className="container px-4 mt-12">
+    <section className="container px-4 mt-12 min-h-[420px] md:min-h-[360px]">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg champagne-gradient flex items-center justify-center">
@@ -86,7 +86,7 @@ export default function HappyHourDeals() {
             <p className="text-xs text-muted-foreground">Limited-time flash deals</p>
           </div>
         </div>
-        <Link to="/catalogue?sort=deals" className="text-sm font-semibold text-primary flex items-center gap-1 hover:gap-2 transition-all">
+        <Link to="/catalogue?sort=deals" className="text-sm font-semibold text-gold-text flex items-center gap-1 hover:gap-2 transition-all">
           All deals <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
@@ -114,7 +114,7 @@ export default function HappyHourDeals() {
               <div className="p-3">
                 <p className="text-xs font-medium text-foreground line-clamp-2 mb-2">{deal.name}</p>
                 <div className="flex items-baseline gap-2 mb-2">
-                  <span className="text-base font-bold text-primary">R{deal.dealPrice}</span>
+                  <span className="text-base font-bold text-gold-text">R{deal.dealPrice}</span>
                   <span className="text-xs text-muted-foreground line-through">R{deal.originalPrice}</span>
                 </div>
                 <div className="flex items-center gap-1 text-destructive">

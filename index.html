@@ -74,9 +74,9 @@
     <link rel="preconnect" href="https://deiewcktyzzeviszukqj.supabase.co" />
     <link rel="dns-prefetch" href="https://deiewcktyzzeviszukqj.supabase.co" />
     <!-- Google Fonts: preconnect + parallel stylesheet load instead of the
-         slow @import waterfall in src/index.css. Cuts CLS by ~0.05 because
-         the font face arrives before first contentful paint, eliminating the
-         "Outfit swaps in over fallback" reflow. -->
+         slow @import waterfall in src/index.css. The font-face arrives during
+         first paint instead of after, so DM Sans/Outfit text renders without
+         the "fallback → web font" swap that contributes to CLS. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
