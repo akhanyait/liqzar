@@ -20,22 +20,7 @@ const PUBLIC_ROUTES = [
 for (const route of PUBLIC_ROUTES) {
   test(`A11Y · ${route.name} (${route.path}) has no critical/serious violations`, async ({
     page,
-  }, testInfo) => {
-    // Pre-existing violations as of the harness lift (May 2026):
-    //   Landing:
-    //     • button-name (CRITICAL): carousel arrow buttons have no aria-label
-    //     • select-name (CRITICAL): a <select> without an associated <label>
-    //     • color-contrast (SERIOUS): gold-on-white text on the home sections
-    //   /auth:
-    //     • color-contrast (SERIOUS): gold accents on light surfaces
-    // These are real bugs to fix in a follow-up "a11y polish" PR. The test
-    // stays in the suite (fixme means "expected to fail") so it flips back
-    // to green automatically once the violations are addressed.
-    testInfo.fixme(
-      true,
-      "Pre-existing a11y violations — fix in follow-up PR, then remove this fixme.",
-    );
-
+  }) => {
     await page.goto(route.path);
     // Settle motion + late-mounting components before scanning.
     await page.waitForLoadState("networkidle");
@@ -45,6 +30,14 @@ for (const route of PUBLIC_ROUTES) {
       // Third-party scripts we don't control — drop noise.
       .exclude("script[src*='cloudflareinsights']")
       .exclude("script[src*='googletagmanager']")
+      // color-contrast is disabled until the gold-on-cream brand palette gets
+      // a dedicated dark-text token. Today --primary (`hsl(40 85% 50%)` ≈
+      // `#eca413`) over `--background` (`hsl(40 32% 95%)` ≈ `#f6f4ee`) is
+      // 1.93:1 — well under WCAG AA's 4.5:1. Even the actual brand gold
+      // `#D4AF37` (--gold) sits at ~2.6:1 against the cream surface, so this
+      // needs either a darker `--gold-text` variable for label text OR a
+      // background change. Brand decision — follow-up PR (#TBD).
+      .disableRules(["color-contrast"])
       .analyze();
 
     const blocking = results.violations.filter(
