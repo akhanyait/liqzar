@@ -179,6 +179,11 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    /* CLS prevention: match the fallback font's x-height to DM Sans so the
+       swap (system-ui → DM Sans) doesn't reflow text. 0.52 is tuned for
+       DM Sans; if the brand sans changes, re-measure with Chrome DevTools
+       > Layout-Shift recording. */
+    font-size-adjust: 0.52;
   }
 
   /* ── Premium layered backdrop (replaces plain white) ──

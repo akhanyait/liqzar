@@ -75,7 +75,7 @@ export default function HappyHourDeals() {
   const [deals] = useState(generateDeals);
 
   return (
-    <section className="container px-4 mt-12">
+    <section className="container px-4 mt-12 min-h-[420px] md:min-h-[360px]">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg champagne-gradient flex items-center justify-center">

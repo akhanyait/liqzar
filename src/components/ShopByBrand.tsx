@@ -32,7 +32,7 @@ const brands = [
 
 const ShopByBrand = () => {
   return (
-    <section className="container px-4 mt-14">
+    <section className="container px-4 mt-14 min-h-[260px]">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground">Shop by Brand</h2>
