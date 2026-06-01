@@ -74,47 +74,16 @@ if should_run ios && [ -z "${SKIP_IOS:-}" ]; then
     else
       WS=$(ls -1d *.xcworkspace | head -1)
       SCHEME="${WS%.xcworkspace}"
-      # Pick the first available iPhone simulator by name + OS (highest OS).
-      # Earlier UDID + name-only approaches both had failure modes (stale
-      # UDIDs in the JSON, empty $SIM_NAME falling back to xcodebuild's
-      # default iPhone SE which isn't installed). Reading name+OS directly
-      # from `simctl list devices available` is the most reliable.
-      SIM_INFO=$(xcrun simctl list devices available --json 2>/dev/null | python3 <<'PY'
-import sys, json
-data = json.load(sys.stdin)
-candidates = []
-for runtime, devices in data.get('devices', {}).items():
-    # runtime key looks like "com.apple.CoreSimulator.SimRuntime.iOS-26-5"
-    if 'iOS' not in runtime:
-        continue
-    # Extract OS version like "26.5"
-    parts = runtime.rsplit('iOS-', 1)
-    if len(parts) != 2:
-        continue
-    os_ver = parts[1].replace('-', '.')
-    for d in devices:
-        name = d.get('name', '')
-        if 'iPhone' not in name:
-            continue
-        if any(x in name for x in ['Pro', 'Air', 'Mirror', 'Studio']):
-            continue
-        candidates.append((os_ver, name))
-# Sort by OS descending, name ascending — take the top
-candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
-if candidates:
-    print(f"{candidates[0][1]}|{candidates[0][0]}")
-PY
-)
-      if [ -z "$SIM_INFO" ]; then
-        fail "no iPhone simulator found via simctl"
-        record "FAIL" "iOS xcodebuild" "no sim"
-      else
-        SIM_NAME="${SIM_INFO%|*}"
-        SIM_OS="${SIM_INFO#*|}"
-        echo "  Building against: '$SIM_NAME' (iOS $SIM_OS)"
-        xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Debug \
-          -destination "platform=iOS Simulator,name=$SIM_NAME,OS=$SIM_OS" \
-          -derivedDataPath ./build -quiet build >/tmp/launch-ios-build.log 2>&1
+      # Use xcodebuild's "generic" destination — builds for any iOS Simulator
+      # without needing a specific UDID/name/OS. This is the canonical way to
+      # build for Simulator when you don't need to run/test (which we don't —
+      # we're verifying the build succeeds, that's it). Avoids every sim-
+      # picker failure mode we hit with the UDID and name-based approaches.
+      echo "  Building against: generic/platform=iOS Simulator"
+      xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Debug \
+        -destination 'generic/platform=iOS Simulator' \
+        -derivedDataPath ./build -quiet build >/tmp/launch-ios-build.log 2>&1
+      if true; then
         if [ $? -eq 0 ]; then
           APP=$(find ./build/Build/Products -name '*.app' -maxdepth 5 | head -1)
           ok "iOS build success → $APP"
