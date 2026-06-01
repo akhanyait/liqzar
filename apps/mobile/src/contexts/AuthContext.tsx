@@ -1,8 +1,15 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { SecureAuthStorage } from "../services/storage";
+import { toZAPhone } from "../lib/za-utils";
+import {
+  type AppRole,
+  ROLE_LABELS as SHARED_ROLE_LABELS,
+} from "../lib/roles";
 
-export type AppRole = "admin" | "customer" | "driver";
+// Re-export so existing callers (LoginScreen, etc.) keep working unchanged.
+export type { AppRole };
+export const ROLE_LABELS = SHARED_ROLE_LABELS;
 
 interface AppUser {
   id: string;
@@ -82,12 +89,6 @@ export const TEST_USERS = __DEV__
       },
     ]
   : [];
-
-export const ROLE_LABELS: Record<AppRole, string> = {
-  admin: "Back-Office Admin",
-  customer: "Customer",
-  driver: "Driver",
-};
 
 const normalizePhone = (value: string) => value.replace(/\D/g, "");
 
@@ -296,11 +297,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Real Supabase OTP verification
-    // Supabase requires E.164 format (e.g. "+27833497557"), not raw 10-digit ("0833497557").
-    const e164 = normalized.startsWith("27")
-      ? `+${normalized}`
-      : `+27${normalized.replace(/^0/, "")}`;
+    // Real Supabase OTP verification — Supabase requires E.164 (+27…), not raw
+    // 10-digit. toZAPhone covers 0XX, 27XX, and bare 9-digit local-without-0.
+    const e164 = toZAPhone(normalized);
     const { data, error } = await supabase.auth.verifyOtp({
       phone: e164,
       token: otp,

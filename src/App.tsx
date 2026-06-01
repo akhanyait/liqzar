@@ -14,6 +14,7 @@ import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { LanguageProvider } from "@/context/LanguageContext";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
 import CartDrawer from "@/components/CartDrawer";
@@ -251,6 +252,7 @@ const App = () => {
         enableSystem
       >
       <AuthProvider>
+        <LanguageProvider>
         <CartProvider>
           <TooltipProvider>
             <Toaster />
@@ -389,6 +391,7 @@ const App = () => {
             </Router>
           </TooltipProvider>
         </CartProvider>
+        </LanguageProvider>
       </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
