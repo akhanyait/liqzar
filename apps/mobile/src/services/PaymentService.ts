@@ -7,7 +7,10 @@
  */
 import { supabase } from "../lib/supabase";
 
-export type PaymentMethod = "instant_eft" | "cash_on_delivery";
+// Must stay in sync with src/lib/payment-gateway.ts on web. The four methods
+// match the Yoco-backed checkout flow (card + instant_eft + snapscan) plus
+// the offline cash-on-delivery path used by drivers.
+export type PaymentMethod = "card" | "instant_eft" | "snapscan" | "cash_on_delivery";
 
 export interface PaymentRequest {
   orderId: string;

@@ -330,7 +330,7 @@ export function useAdminDashboard(period: AdminDashboardPeriod = "week") {
       const customerIds = Array.from(
         new Set(recentBase.map((o) => o.user_id).filter(Boolean)),
       );
-      let customerNames = new Map<string, string>();
+      const customerNames = new Map<string, string>();
       if (customerIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { supabase as typedSupabase } from "../lib/supabase";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const supabase = typedSupabase as any;
 
 export interface CallToken {

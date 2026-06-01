@@ -47,8 +47,8 @@ const EditorialScreen = () => {
             <Icon name="chevron-back" size={22} color={colors.text.primary} />
           </TouchableOpacity>
           <View style={styles.kicker}>
-            <Icon name="book-outline" size={14} color={colors.primary} />
-            <Text style={[styles.kickerText, { color: colors.primary }]}>
+            <Icon name="book-outline" size={14} color={colors.gold.primary} />
+            <Text style={[styles.kickerText, { color: colors.gold.primary }]}>
               SIP STORIES
             </Text>
           </View>
@@ -85,7 +85,7 @@ const EditorialScreen = () => {
             <Text style={styles.featuredPillText}>FEATURED</Text>
           </View>
           <View style={styles.featuredBody}>
-            <Text style={[styles.category, { color: colors.primary }]}>
+            <Text style={[styles.category, { color: colors.gold.primary }]}>
               {featured.category.toUpperCase()}
             </Text>
             <Text style={[styles.featuredTitle, { color: colors.text.primary }]}>
@@ -138,7 +138,7 @@ const EditorialScreen = () => {
                 style={styles.cardImage}
               />
               <View style={styles.cardBody}>
-                <Text style={[styles.category, { color: colors.primary }]}>
+                <Text style={[styles.category, { color: colors.gold.primary }]}>
                   {article.category.toUpperCase()}
                 </Text>
                 <Text

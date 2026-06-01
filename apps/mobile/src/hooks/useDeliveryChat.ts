@@ -7,7 +7,7 @@ import { useAuth } from "../contexts/AuthContext";
  * Mirror of /src/hooks/useDeliveryChat.ts.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const sb = supabase as any;
 
 export interface DeliveryMessage {
@@ -69,7 +69,7 @@ export const useDeliveryChat = (orderId: string | undefined) => {
           table: "delivery_messages",
           filter: `order_id=eq.${orderId}`,
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (payload: any) => {
           const msg = payload.new as DeliveryMessage;
           setMessages((prev) =>

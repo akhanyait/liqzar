@@ -5,7 +5,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase as typedSupabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const supabase = typedSupabase as any;
 
 interface Props {

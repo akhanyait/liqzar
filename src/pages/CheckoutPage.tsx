@@ -295,7 +295,7 @@ const CheckoutPage = () => {
         setAddressSearchLoading(false);
       }
     }, 400);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, []);
 
   const selectAddressSuggestion = useCallback((item: NominatimResult) => {

@@ -499,7 +499,7 @@ export default function HomeScreen() {
     </View>
   );
 
-  const bannerOverlayColors = isDark
+  const bannerOverlayColors: [string, string, ...string[]] = isDark
     ? ["rgba(5,4,3,0.85)", "rgba(5,4,3,0.6)", "rgba(5,4,3,0.2)"]
     : ["rgba(255,255,255,0.9)", "rgba(255,255,255,0.65)", "rgba(255,255,255,0.15)"];
 

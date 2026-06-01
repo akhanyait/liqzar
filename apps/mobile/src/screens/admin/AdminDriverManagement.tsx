@@ -68,7 +68,7 @@ export default function AdminDriverManagement() {
 
   const fetchDrivers = useCallback(async () => {
     try {
-      let query = supabase
+      const query = supabase
         .from('driver_profiles')
         .select('*')
         .order('created_at', { ascending: false });

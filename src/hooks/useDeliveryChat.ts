@@ -13,7 +13,7 @@ import { useAuth } from "@/context/AuthContext";
  * Admin/system rows are read-only from this hook.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const supabase = typedSupabase as any;
 
 export interface DeliveryMessage {
@@ -78,7 +78,7 @@ export const useDeliveryChat = (orderId: string | undefined) => {
           table: "delivery_messages",
           filter: `order_id=eq.${orderId}`,
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (payload: any) => {
           const msg = payload.new as DeliveryMessage;
           setMessages((prev) =>

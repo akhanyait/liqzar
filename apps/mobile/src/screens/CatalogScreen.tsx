@@ -152,7 +152,7 @@ export default function CatalogScreen() {
       >
         {isActive ? (
           <LinearGradient
-            colors={gradients.gold as unknown as string[]}
+            colors={gradients.gold as unknown as [string, string, ...string[]]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.categoryChipGradient}
@@ -238,7 +238,7 @@ export default function CatalogScreen() {
         }}
       >
         <LinearGradient
-          colors={gradients.gold as unknown as string[]}
+          colors={gradients.gold as unknown as [string, string, ...string[]]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.emptyCTAGradient}
@@ -444,7 +444,7 @@ export default function CatalogScreen() {
                   activeOpacity={0.8}
                 >
                   <LinearGradient
-                    colors={gradients.gold as unknown as string[]}
+                    colors={gradients.gold as unknown as [string, string, ...string[]]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.filterActionBtn}

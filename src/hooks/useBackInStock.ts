@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 
 // Table `stock_notifications` was added in migration 013; cast to avoid
 // regenerating Database types here.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const supabase = typedSupabase as any;
 
 /**

@@ -81,7 +81,7 @@ const DeliveryChatScreen = () => {
           style={[
             styles.bubble,
             {
-              backgroundColor: isMe ? colors.primary : colors.background.card,
+              backgroundColor: isMe ? colors.gold.primary : colors.background.card,
               borderColor: colors.border,
             },
           ]}
@@ -157,7 +157,7 @@ const DeliveryChatScreen = () => {
       >
         {loading ? (
           <View style={styles.loadingWrap}>
-            <ActivityIndicator color={colors.primary} />
+            <ActivityIndicator color={colors.gold.primary} />
           </View>
         ) : (
           <FlatList
@@ -210,7 +210,7 @@ const DeliveryChatScreen = () => {
               styles.sendBtn,
               {
                 backgroundColor:
-                  draft.trim() && !sending ? colors.primary : colors.background.primary,
+                  draft.trim() && !sending ? colors.gold.primary : colors.background.primary,
                 opacity: draft.trim() && !sending ? 1 : 0.5,
               },
             ]}

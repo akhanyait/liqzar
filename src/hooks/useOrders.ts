@@ -417,7 +417,7 @@ export function useAdminOrders() {
 
       // Step 2: fetch profiles for the user_ids in this result set
       const userIds = [...new Set((data || []).map((o: any) => o.user_id).filter(Boolean))];
-      let profileMap: Record<string, { full_name: string | null; phone: string | null }> = {};
+      const profileMap: Record<string, { full_name: string | null; phone: string | null }> = {};
       if (userIds.length > 0) {
         const { data: profileData } = await supabase
           .from("profiles")

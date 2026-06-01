@@ -27,7 +27,7 @@ const writeGuest = async (ids: string[]) => {
 };
 
 // Table added in migration 013; Database types not regenerated — use `as any`.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const sb = supabase as any;
 
 export const useBackInStock = (productId: string | undefined) => {

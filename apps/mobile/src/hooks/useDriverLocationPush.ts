@@ -13,7 +13,7 @@ import { supabase } from "../lib/supabase";
  */
 
 // Table added in migration 014; Database types not regenerated — cast to any.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const sb = supabase as any;
 
 const INTERVAL_MS = 8_000;

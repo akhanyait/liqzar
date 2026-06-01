@@ -7,7 +7,7 @@ import IoniconsIcon from "@expo/vector-icons/Ionicons";
 // (Expo SDK 53 removed expo-font's processFontFamily helper that was
 // previously used to handle Expo Go's scoped family names.)
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const glyphMap: Record<string, number | string> = require("@expo/vector-icons/build/vendor/react-native-vector-icons/glyphmaps/Ionicons.json");
 
 type IoniconsName = React.ComponentProps<typeof IoniconsIcon>["name"];
