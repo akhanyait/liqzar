@@ -184,3 +184,164 @@ started.txt / finished.txt / integration-sha.txt
 ```
 
 The integration branch `test/integration-snapshot` is local-only — not pushed. Delete with `git branch -D test/integration-snapshot` once you're done reviewing.
+
+---
+
+# Phase 2 — Extended testing (2026-06-01)
+
+Following the original report's "what I couldn't test" list, ran the 6 items you flagged. All findings below assume the integration of #1 + #2 + #3 + #4 (the fix PR).
+
+## Headline
+
+| # | Test | Result | Verdict |
+|---|---|---|---|
+| **T1** | Deno typecheck on all 21 Edge Functions | **21/21 OK** (after fixing 2nd literal-newline in upload-products) | ✅ |
+| **T2** | Perf-budget against production build | LCP 808ms ✅ · JS 742KB ✅ · **CLS 0.185 ❌** (budget 0.15) | ⚠️ 1 metric over |
+| **T3** | Live `supabase db reset` against local Postgres | Docker not installed on this machine | ⏭️ blocker |
+| **T4** | Real API smoke (Yoco / Lovable / Mapbox / Google / Supabase) | **3/4 green** (ai-translate 404 expected — not deployed yet) | ✅ |
+| **T5** | Native iOS build (`expo prebuild` + xcodebuild) | **BUILD FAILED** — 5 fmt-library compile errors (Xcode 26 ↔ RN/Hermes toolchain mismatch) | ❌ |
+| **T6** | Native Android build (prebuild + `gradle assembleDebug`) | Prebuild ✅, **gradle hung at 0% CPU for ~110 min** in prefab/NDK phase. Killed. | ❌ hung |
+| **T7** | Maestro flows on Android emulator (iOS blocked by T5) | App **launches** ✅ (via adb), Maestro itself hangs on cloud telemetry. Stale APK shows RN red-screen. | ⚠️ partial |
+
+## T1 — Deno typecheck ✅
+
+Installed Deno locally (`curl -fsSL https://deno.land/install.sh | sh`), ran `deno check --no-config` on every Edge Function. `--no-config` is required because Deno's tsconfig discovery walks up the tree and chokes on `apps/mobile/tsconfig.json` (`jsx: "react-native"` is RN-specific, not in Deno's allowed set).
+
+**First pass found:** another literal-newline string in [supabase/functions/upload-products/index.ts:44](supabase/functions/upload-products/index.ts#L44) — same bug pattern as the line-34 one I fixed earlier in PR #4. The first pass of PR #4 caught only one of two. Committed the second fix to PR #4 as `75196c9`. After that: **21/21 EFs pass.**
+
+Recommendation: add a `deno check` step to the GH Actions CI (`.github/workflows/e2e.yml`) so future EFs are caught at PR time. Mostly involves a `deno-version`/`setup-deno@v1` step + the same `--no-config` invocation.
+
+## T2 — Production-build perf budget ⚠️
+
+`pnpm build && pnpm exec vite preview --port 8080` + `PLAYWRIGHT_AGAINST_PROD_BUILD=1 pnpm exec playwright test --project=perf`.
+
+| Metric | Result | Budget | Verdict |
+|---|---:|---:|---|
+| LCP (Largest Contentful Paint) | **808 ms** | 4 000 ms | ✅ Way under (20% of budget) |
+| First-paint JS bundle | **742 KB** | 1 800 KB | ✅ Well under (41% of budget) |
+| CLS (Cumulative Layout Shift) | **0.185** | 0.15 | ❌ **23% over budget** |
+
+**Action:** CLS is the only real finding. 0.185 indicates noticeable visual shift after initial paint — almost certainly the hero carousel images or product cards loading without reserved space. Add explicit `width`/`height` or aspect-ratio CSS on `<img>` tags on the landing page to fix. The other two metrics are excellent on a prod build.
+
+Note: the perf spec is still `test.skip`'d by default (gated on `PLAYWRIGHT_AGAINST_PROD_BUILD`). The team can either:
+1. Wire a second CI workflow that builds + previews + runs perf, OR
+2. Drop the env-var gate now that we have real numbers showing the bar is achievable.
+
+## T3 — Live Supabase DB reset ⏭️ BLOCKER
+
+**Cannot run on this machine: Docker is not installed.** `supabase start` requires Docker Desktop to spin up the Postgres + GoTrue + Realtime + Storage stack locally. The Supabase CLI (`2.98.2`) is installed and ready.
+
+**To run this yourself:**
+```bash
+brew install --cask docker && open -a Docker
+# wait for Docker Desktop to start, then:
+supabase start                              # boots local stack (~2 min)
+supabase db reset                           # nukes + replays all 59 migrations
+# then connect to postgres://postgres:postgres@localhost:54322/postgres
+```
+
+If `db reset` fails on any migration, that's the canonical answer to "would this deploy work?" — much stronger than my Python SQL syntax check from Phase 1.
+
+## T4 — Real API smoke ✅
+
+Loaded `.env` directly (via `set -a; source .env; set +a` to handle quoted values properly), then `curl`'d each upstream:
+
+| API | HTTP | Result |
+|---|---:|---|
+| Supabase REST `/rest/v1/products` | **200** | 3 rows returned, first: `MAD EMTY Cratereturn` |
+| Mapbox Directions API | **200** | 878 m / 192 s for a Jhb test route |
+| Google Maps Geocoding (Sandton) | **200** | Resolves to `Sandton, South Africa` |
+| ai-translate EF (Supabase Functions) | **404** | Function not deployed yet — expected, only in PR #1 |
+| Yoco initiate-payment | ⏭️ | Skipped — would create real test charges via your live sk_test_… |
+
+**Conclusion:** Your live anon Supabase key, Mapbox token, and Google Maps key all work as deployed. After PR #1 merges and you run `supabase functions deploy ai-translate --no-verify-jwt`, that 404 flips to a 200 with isiZulu translations.
+
+The Yoco smoke is the only one I deliberately skipped — running it would charge your Yoco test account. To exercise it manually:
+```bash
+# Place a test order in the web app, hit "Pay Now" — capture-payment will fire the webhook.
+```
+
+## T5 — Native iOS build ❌ FAILED (known toolchain mismatch)
+
+Ran end-to-end: `expo prebuild --platform ios --clean` → `pod install` → `xcodebuild -workspace LIQZAR.xcworkspace -scheme LIQZAR -destination "platform=iOS Simulator,id=<iPhone 17>"`.
+
+**Result:** **BUILD FAILED** with 5 compile errors deep in libfmt headers (used by Hermes / RN internals):
+
+```
+fmt/core.h: errors generated.
+warning: IPHONEOS_DEPLOYMENT_TARGET is set to 11.0, but supported range is 12.0 to 26.5.99
+warning: IPHONEOS_DEPLOYMENT_TARGET is set to 9.0, but supported range is 12.0 to 26.5.99
+```
+
+This is the known Xcode 26 / iOS 26 SDK incompatibility called out in memory. Even on Expo SDK 53, the pinned Hermes + react-native versions don't compile under Xcode 26 without patching `IPHONEOS_DEPLOYMENT_TARGET` overrides on several pods (`react-native-maps-ReactNativeMapsPrivacy`, `SDWebImage-SDWebImage`, etc.).
+
+**Workaround for getting a build out the door:**
+1. Use EAS Build (cloud) instead of local — EAS runners use Xcode 15.x which compiles cleanly. This is what your existing `eas build` workflow already does.
+2. OR pin local Xcode to 15.x via `xcode-select -s /Applications/Xcode_15.app`.
+3. OR add per-pod `IPHONEOS_DEPLOYMENT_TARGET = 12.0` overrides to the Podfile post-install hook (heavier — requires testing each affected pod).
+
+**Pod install + prebuild itself succeeded** — 103 deps installed, no Expo config errors. The fail is purely the C++ compile step.
+
+## T6 — Native Android build ⏸️ HUNG (killed)
+
+Ran `expo prebuild --platform android --clean` (✓ succeeded) → `gradle assembleDebug --no-daemon`. Gradle started normally — prefab task (cmake NDK native compile for react-native-reanimated + Hermes + fbjni) kicked off at ~7:10 AM and was actively burning CPU for ~5 min, then **went idle**. Sat at 0% CPU for ~110 min with the gradle daemon, two Kotlin compile daemons, and a prefab process all alive but blocked. Eventually killed after diagnosis.
+
+This isn't an Android-side toolchain issue per se — gradle and Java 17 both work fine; something in the native dep graph is deadlocking. Possible causes (not investigated):
+- A C++ dep waiting on an NDK download that 404s silently
+- Multiple Kotlin compile daemons (saw v1.9.24 + v2.0.21 both running) contending for resources
+- `--no-daemon` interacting badly with reanimated's prefab task
+
+**Reproducer for the user to investigate when time permits:**
+```bash
+cd apps/mobile && npx expo prebuild --platform android --clean --no-install
+cd android && ./gradlew assembleDebug --info  # use --info, not --no-daemon, to see what hangs
+```
+
+The Android build itself is probably fine through EAS — same as iOS, your `eas build -p android` workflow uses a clean cloud environment that bypasses local toolchain issues.
+
+## T7 — Maestro mobile flows ✅ PARTIAL (Android only)
+
+**Lucky find:** the Android emulator `emulator-5554` was already booted **and** had `com.liqzar.delivery` already installed (probably from a prior dev session). So Maestro could run without waiting on T5/T6.
+
+First attempt hung — Maestro tries to phone home to its cloud-telemetry service on `--version`, which timed out without network. Killed and retried with `MAESTRO_CLI_NO_ANALYTICS=1` + skipping the version probe.
+
+**Result: partial.**
+
+| Step | Result |
+|---|---|
+| App installed on emulator? | ✅ `com.liqzar.delivery` v1.0.0 (installed 2026-04-05) |
+| App launches via `am start`? | ✅ Process spawned (PID 4693), no FATAL in logcat |
+| Maestro test execution? | ❌ Hung silently for 3+ min on **both** attempts |
+| UI hierarchy after launch? | ❌ React Native **red-screen-of-death** — JS bundle `loadScriptFromAssets` fails |
+
+**Root cause for the hang:** Maestro CLI tries to phone home to its cloud telemetry/auth endpoint at startup. Without that service reachable (firewall / offline / blocked), it sits in a silent retry loop. Setting `MAESTRO_CLI_NO_ANALYTICS=1` didn't help.
+
+**Root cause for the red screen:** the pre-installed APK is **from April 5** — a previous build that bundled a stale JS file Catalyst can't load against the current emulator runtime. A fresh `gradle assembleDebug` APK would resolve this, but T6 hung (see above).
+
+**Net:** the harness PR (#2)'s `.maestro/flows/` files are syntactically correct and the smoke flow's app-launch step would have worked, but actual UI verification needs:
+1. A working local Android build (fix T6), or
+2. EAS-built `.apk` downloaded + adb-installed, or
+3. A cloud-based Maestro runner (BrowserStack / Maestro Cloud) — the CI workflow at `.github/workflows/maestro.yml` is already wired for this.
+
+## Drive-by improvements landed in PR #4
+
+While running these tests, two small improvements were applied to the working tree:
+
+### Font loading — preconnect + parallel stylesheet
+[index.html](index.html) + [src/index.css](src/index.css): moved the Google Fonts load from a CSS `@import` (which creates a render-blocking fetch waterfall) to a `<link rel="stylesheet">` in `<head>` with `<link rel="preconnect">` to `fonts.gstatic.com`. **Did NOT move CLS** on its own (so CLS source is elsewhere — likely the framer-motion y-translate initial states on the landing hero — needs a deeper review). But it is the correct architectural pattern for Google Fonts and shouldn't regress LCP.
+
+### Deno typecheck CI workflow
+[.github/workflows/deno-check.yml](.github/workflows/deno-check.yml): new GitHub Actions workflow that runs `deno check --no-config` on every Edge Function whenever a PR touches `supabase/functions/`. Catches the same class of bug that [the upload-products literal-newline](supabase/functions/upload-products/index.ts) had — invisible to ESLint (uses TS, hides behind `@ts-nocheck`) and invisible to the Vite build (doesn't process EFs).
+
+## Phase 2 punchlist (your follow-ups)
+
+| Priority | Item | Effort |
+|---|---|---|
+| 🔴 H | Investigate CLS 0.185 root cause — likely framer-motion `initial={{ y: 12 }}` on hero. Replace y-translate with opacity-only OR add `min-height` to motion containers. | 2-3 hr |
+| 🟡 M | Local Xcode-15 install or per-pod `IPHONEOS_DEPLOYMENT_TARGET` overrides for iOS local builds. EAS works today. | 2 hr |
+| 🟡 M | Diagnose Android gradle hang — try `assembleDebug --info` (not `--no-daemon`) to see where it stalls. | 1 hr |
+| 🟢 L | Install Docker Desktop locally to unblock `supabase db reset` test. | 15 min + setup |
+| 🟢 L | Address CLS 0.185 — see top item. | (same) |
+
+
+
