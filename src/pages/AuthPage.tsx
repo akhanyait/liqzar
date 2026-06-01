@@ -380,10 +380,11 @@ const AuthPage = () => {
               LIQZAR
             </span>
             <span
-              className="text-[10px] tracking-[0.2em] font-medium"
-              /* #9A8860 measured 3.79:1 on the dark auth surface (WCAG fail).
-                 #D4AF37 (brand gold) at full opacity hits 5.2:1 — passes AA. */
-              style={{ color: "#D4AF37" }}
+              className="text-[10px] tracking-[0.2em] font-medium text-gold-text"
+              /* The auth panel renders on the cream --background (#f6f4ee),
+                 NOT a dark surface. Brand gold #D4AF37 there is only 1.91:1.
+                 text-gold-text resolves to #6B5114 — 5.5:1 on cream, passes
+                 WCAG AA. (See --gold-text in src/index.css for the rationale.) */
             >
               RESERVE THE FINEST.
             </span>

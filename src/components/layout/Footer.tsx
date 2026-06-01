@@ -110,7 +110,7 @@ const Footer = () => {
                 href="https://akhanya.co.za"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent font-semibold hover:underline"
+                className="text-[#D4AF37] font-semibold hover:underline"
               >
                 Akhanya IT
               </a>
@@ -369,7 +369,7 @@ const Footer = () => {
                 href="https://akhanya.co.za"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent font-semibold hover:underline"
+                className="text-[#D4AF37] font-semibold hover:underline"
               >
                 Akhanya IT
               </a>
