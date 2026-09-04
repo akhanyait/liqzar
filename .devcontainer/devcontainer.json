@@ -1,0 +1,33 @@
+{
+  "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json",
+  "name": "liqZAR",
+
+  // Pinned to the major version this project is developed against, so a
+  // Codespace does not quietly build on a different runtime than the Mac did.
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  // Dependencies are not in the repository and never should be; the container
+  // installs them once on creation. This is the step that makes "clone and
+  // run" true rather than aspirational.
+  "postCreateCommand": "npm install",
+
+  "forwardPorts": [5173, 3000],
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss"
+      ]
+    }
+  },
+
+  // 4 cores keeps a Next.js build comfortable. Codespaces bills by core-hour,
+  // so this is the knob that decides how far the free tier goes.
+  "hostRequirements": { "cpus": 4 }
+}

@@ -1,21 +1,16 @@
 // @ts-nocheck
 // AI Translate — UI string translation across South Africa's 11 official
-// languages, powered by the same Lovable AI gateway that backs sommelier-chat
-// (so it shares LOVABLE_API_KEY + billing).
+// languages, direct Google Gemini (no gateway middleman).
 //
-// Adapted from ArtisanZA's `ai-translate` Edge Function. Differences:
-//   - Calls https://ai.gateway.lovable.dev (vs Google Gemini SDK) so a single
-//     API key powers every AI feature in liqZAR.
-//   - System prompt is liqzar-flavoured (preserves "R" amounts, wine/spirit
-//     terminology, brand names like "LIQZAR" untouched).
-//   - JSON-mode response so the client gets a stable `{ translations: [...] }`
-//     shape it can map back to the input array.
+// Two modes, same endpoint:
+//   • Batch UI strings: { texts: string[], targetLang }
+//     → { translations: string[] }      (used by src/context/LanguageContext.tsx)
+//   • Single chat message: { text, targetLang }
+//     → { translated, detected_language, target_language }   (future driver↔customer)
 //
-// Called by src/context/LanguageContext.tsx via supabase.functions.invoke()
-// with body: { texts: string[], targetLang: string } for batch mode, or
-// { text: string, targetLang: string } for single-message mode (used by
-// future chat translation, e.g. driver↔customer messaging).
+// Env: GOOGLE_AI_API_KEY  (free tier from https://aistudio.google.com)
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { GoogleGenAI, Type } from "npm:@google/genai@2.6.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,42 +18,18 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const MODEL = "google/gemini-3-flash-preview";
+const MODEL = "gemini-2.5-flash";
 
 const UI_SYSTEM_PROMPT = (target: string) =>
-  `You localise the UI of LIQZAR, a South African premium wine & spirits e-commerce app, into ${target}. Translate naturally and concisely (UI labels, headings, buttons). Keep brand names like "LIQZAR" as-is, keep emoji, keep ZAR amounts and the "R" symbol untouched (e.g. "R 1 500" stays "R 1 500"). Keep wine/spirit terminology accurate (Cabernet, Chenin Blanc, single malt, etc.). Return ONLY a JSON object of the form {"translations": ["...", "..."]} with exactly one translation per input string, in order — no commentary, no markdown fences.`;
+  `You localise the UI of LIQZAR, a South African premium wine & spirits e-commerce app, into ${target}. Translate naturally and concisely (UI labels, headings, buttons). Keep brand names like "LIQZAR" as-is, keep emoji, keep ZAR amounts and the "R" symbol untouched (e.g. "R 1 500" stays "R 1 500"). Keep wine/spirit terminology accurate (Cabernet, Chenin Blanc, single malt, etc.). Return exactly one translation per input string, in order.`;
 
 const CHAT_SYSTEM_PROMPT = (target: string) =>
-  `You translate chat messages on LIQZAR, a South African premium wine & spirits app (used by customers, drivers, and back-office staff). Translate the user's message into ${target}. Preserve meaning and tone. Keep ZAR amounts and "R" symbols as-is. Do not add commentary. Return ONLY a JSON object of the form {"translated": "...", "detected_language": "...", "target_language": "..."}.`;
+  `You translate chat messages on LIQZAR, a South African premium wine & spirits app (used by customers, drivers, and back-office staff). Translate the user's message into ${target}. Preserve meaning and tone. Keep ZAR amounts and "R" symbols as-is. Do not add commentary. Detect the source language (one of South Africa's 11 official languages or other).`;
 
-async function callGateway(systemPrompt: string, userContent: string) {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
-
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userContent },
-      ],
-      response_format: { type: "json_object" },
-    }),
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`AI gateway ${response.status}: ${body.slice(0, 200)}`);
-  }
-  const data = await response.json();
-  const text = data?.choices?.[0]?.message?.content;
-  if (!text) throw new Error("AI gateway returned empty content");
-  return text as string;
+function getClient() {
+  const key = Deno.env.get("GOOGLE_AI_API_KEY");
+  if (!key) throw new Error("GOOGLE_AI_API_KEY is not configured");
+  return new GoogleGenAI({ apiKey: key });
 }
 
 serve(async (req) => {
@@ -67,8 +38,9 @@ serve(async (req) => {
   try {
     const { text, texts, targetLang } = await req.json();
     const target = typeof targetLang === "string" && targetLang.trim() ? targetLang.trim() : "English";
+    const ai = getClient();
 
-    // ── Batch mode: translate an array of UI strings in one call ──
+    // ── Batch mode ──────────────────────────────────────────────────────────
     if (Array.isArray(texts)) {
       const items = texts.filter((t) => typeof t === "string").slice(0, 80);
       if (items.length === 0) {
@@ -77,13 +49,26 @@ serve(async (req) => {
         });
       }
 
-      const userContent = `Translate each of these app UI strings into ${target}. Return them in the SAME ORDER.\n${JSON.stringify(items)}`;
-      const raw = await callGateway(UI_SYSTEM_PROMPT(target), userContent);
+      const response = await ai.models.generateContent({
+        model: MODEL,
+        contents: `Translate each of these app UI strings into ${target}. Return them in the SAME ORDER.\n${JSON.stringify(items)}`,
+        config: {
+          systemInstruction: UI_SYSTEM_PROMPT(target),
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              translations: { type: Type.ARRAY, items: { type: Type.STRING } },
+            },
+            required: ["translations"],
+          },
+        },
+      });
 
       // Parse defensively — fall back to English if the model returns garbage.
       let parsed: { translations?: string[] } = {};
       try {
-        parsed = JSON.parse(raw);
+        parsed = JSON.parse(response.text ?? "{}");
       } catch {
         return new Response(JSON.stringify({ translations: items }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -97,15 +82,33 @@ serve(async (req) => {
       });
     }
 
-    // ── Single-message mode: translate one chat message ──
+    // ── Single-message mode ────────────────────────────────────────────────
     if (!text || typeof text !== "string" || !text.trim()) {
       return new Response(JSON.stringify({ error: "text or texts is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const raw = await callGateway(CHAT_SYSTEM_PROMPT(target), text.slice(0, 2000));
-    return new Response(raw, {
+
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: text.slice(0, 2000),
+      config: {
+        systemInstruction: CHAT_SYSTEM_PROMPT(target),
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            translated: { type: Type.STRING, description: `Message translated into ${target}` },
+            detected_language: { type: Type.STRING, description: "Detected source language name in English" },
+            target_language: { type: Type.STRING, description: "Target language name" },
+          },
+          required: ["translated", "detected_language", "target_language"],
+        },
+      },
+    });
+
+    return new Response(response.text ?? '{"translated":"","detected_language":"","target_language":""}', {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {

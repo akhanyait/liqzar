@@ -73,3 +73,14 @@ playwright-report/
 test-results/
 playwright/.auth/
 maestro-report.xml
+
+# Holds local tool credentials (a Mapbox token was found here).
+.claude/settings.json
+
+# Merchant onboarding and payment-gateway paperwork. Business documents, and
+# this repository is public — they are not source and must not be published.
+Payment Gateway/
+
+# Supabase CLI scratch state, not source.
+supabase/.temp/
+supabase/.branches/
